@@ -1,7 +1,9 @@
-Fix build system for Emscripten cross-compilation.
-
-Includes selected commits from https://github.com/PeachPy/Python-2.7
-and updates.
+Description: Fix build system for Emscripten cross-compilation.
+  Also adds ac_cv_func_dlopen=yes to support dynamic linking.
+Forwarded: no
+Author: Marat Dukhan <maratek@gmail.com>, Sylvain Beucler <beuc@beuc.net>
+Origin: https://github.com/PeachPy/Python-2.7
+Last-Update: 2018-10-28
 
 commit 5b7a8e46d129e576ad9298055bb4e695aea29cb6
 Author: Marat Dukhan <maratek@gmail.com>
