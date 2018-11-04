@@ -18,28 +18,47 @@ cdef extern from "emscripten.h":
     void emscripten_run_script(const char *script)
     void emscripten_async_call(em_arg_callback_func func, void *arg, int millis)
 
+# https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
+from libc.stdlib cimport malloc, free
+# https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
+from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
+
+
 #cdef extern from "stdio.h":
 #    int puts(const char *s);
 
 
-# call Python function from C using (<object>)()
-cdef void callpyfunc(void *f):
-    (<object>f)()
+cdef void callpyfunc(void *py_function):
+    # not necessary as we're using a no-threading Python
+    #PyEval_InitThreads()
+    # Call Python function from C using (<object>)()
+    (<object>py_function)()
 
-#cdef void callpyfunc_arg(void *s):
-#    func = s->func
-#    arg = s->arg
-#    (<object>func)(arg)
+cdef struct callpyfunc_s:
+    PyObject* py_function
+    PyObject* arg
+cdef void callpyfunc_arg(void* p):
+    s = <callpyfunc_s*>p
+    py_function = <object>(s.py_function)
+    arg = <object>(s.arg)
+    (py_function)(arg)
+    Py_XDECREF(s.py_function)
+    Py_XDECREF(s.arg)
+    free(s)
 
 
-def set_main_loop(func, fps, simulate_infinite_loop):
+def set_main_loop(py_function, fps, simulate_infinite_loop):
     #print "def: set_main_loop", func, fps, simulate_infinite_loop
-    emscripten_set_main_loop_arg(callpyfunc, <void*>func, fps, simulate_infinite_loop)
+    emscripten_set_main_loop_arg(callpyfunc, <PyObject*>py_function, fps, simulate_infinite_loop)
 
 def async_call(func, arg, millis):
     #print "def: async_call", func, arg, millis
-    # TODO: handle arg, cf. callpyfunc_arg() draft
-    emscripten_async_call(callpyfunc, <void*>func, millis)
+    cdef callpyfunc_s* s = <callpyfunc_s*> malloc(sizeof(callpyfunc_s))
+    s.py_function = <PyObject*>func
+    s.arg = <PyObject*>arg
+    Py_XINCREF(s.py_function)
+    Py_XINCREF(s.arg)
+    emscripten_async_call(callpyfunc_arg, <void*>s, millis)
 
 def exit_with_live_runtime():
     emscripten_exit_with_live_runtime();
