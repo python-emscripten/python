@@ -9,17 +9,23 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-CACHEROOT=$(dirname $(readlink -f $0))/../../cache
-BUILD=$(dirname $(readlink -f $0))/../../build
-INSTALLDIR=$(dirname $(readlink -f $0))/../../install
-PATCHESDIR=$(dirname $(readlink -f $0))/patches
+PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/install}
+SETUPLOCAL=${SETUPLOCAL:-'/dev/null'}
+
+CACHEROOT=$(dirname $(readlink -f $0))
+BUILD=$(dirname $(readlink -f $0))/build
+export QUILT_PATCHES=$(dirname $(readlink -f $0))/patches
+
+WGET=${WGET:-wget}
 
 unpack () {
+    $WGET -c https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz -P $CACHEROOT/
+    mkdir -p $BUILD
     cd $BUILD/
     rm -rf Python-2.7.10/
     tar xf $CACHEROOT/Python-2.7.10.tgz
     cd Python-2.7.10/
-    QUILT_PATCHES=$PATCHESDIR quilt push -a
+    quilt push -a
 }
 
 native () {
@@ -34,33 +40,7 @@ native () {
                 --without-threads --without-pymalloc --disable-shared --disable-ipv6
         fi
         echo '*static*' > Modules/Setup.local
-        # pygame_sdl2 deps:
-        echo 'binascii binascii.c' >> Modules/Setup.local
-        echo '_struct _struct.c' >> Modules/Setup.local
-        echo '_collections _collectionsmodule.c' >> Modules/Setup.local
-        echo 'operator operator.c' >> Modules/Setup.local
-        echo 'itertools itertoolsmodule.c' >> Modules/Setup.local
-        echo 'time timemodule.c' >> Modules/Setup.local
-        echo 'math mathmodule.c _math.c' >> Modules/Setup.local
-        # Ren'Py deps:
-        echo 'cStringIO cStringIO.c' >> Modules/Setup.local
-        echo 'cPickle cPickle.c' >> Modules/Setup.local
-        #echo 'signal signalmodule.c' >> Modules/Setup.local  # comment out 'import subprocess'
-        echo '_io -I$(srcdir)/Modules/_io _io/bufferedio.c _io/bytesio.c _io/fileio.c _io/iobase.c _io/_iomodule.c _io/stringio.c _io/textio.c' >> Modules/Setup.local
-        echo '_random _randommodule.c' >> Modules/Setup.local
-        echo '_functools _functoolsmodule.c' >> Modules/Setup.local
-        echo 'datetime datetimemodule.c' >> Modules/Setup.local
-        echo 'zlib zlibmodule.c -I$(prefix)/include -L$(exec_prefix)/lib -lz' >> Modules/Setup.local
-        echo '_md5 md5module.c md5.c' >> Modules/Setup.local
-        echo 'array arraymodule.c' >> Modules/Setup.local
-	# avoid warnings from hashlib module
-        echo '_sha shamodule.c' >> Modules/Setup.local
-        echo '_sha256 sha256module.c' >> Modules/Setup.local
-        echo '_sha512 sha512module.c' >> Modules/Setup.local
-
-        # enable _struct and unicodedata, used by a Python script in 'make install' - or not
-        #echo '_struct _struct.c' >> Modules/Setup.local
-        #echo 'unicodedata unicodedata.c' >> Modules/Setup.local
+	cat $SETUPLOCAL >> Modules/Setup.local
 
         make -j$(nproc) Parser/pgen python
     
@@ -77,12 +57,13 @@ emscripten () {
         # OPT=-Oz: TODO
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
         # not needed as emcc has a single arch: BASECFLAGS=-m32 LDFLAGS=-m32
-        # --without-threads: pthreads currently not usable in emscripten (tragically)
+        # --without-threads: pthreads currently not yet usable in emscripten as of 2018-12
+	#   cf. https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
 
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
-                --prefix=$INSTALLDIR \
+                --prefix=$PREFIX \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
 	fi
@@ -94,37 +75,13 @@ emscripten () {
         # note: PYTHON_FOR_BUILD=../native/python, PATH=... doesn't work, it breaks emcc's Python
         sed -i -e 's,\(PYTHON_FOR_BUILD=.*\) python2.7,\1 $(abs_srcdir)/native/python,' Makefile
         echo '*static*' > Modules/Setup.local
-        # pygame_sdl2 deps:
-        echo 'binascii binascii.c' >> Modules/Setup.local
-        echo '_struct _struct.c' >> Modules/Setup.local
-        echo '_collections _collectionsmodule.c' >> Modules/Setup.local
-        echo 'operator operator.c' >> Modules/Setup.local
-        echo 'itertools itertoolsmodule.c' >> Modules/Setup.local
-        echo 'time timemodule.c' >> Modules/Setup.local
-        echo 'math mathmodule.c _math.c' >> Modules/Setup.local
-        # Ren'Py deps:
-        echo 'cStringIO cStringIO.c' >> Modules/Setup.local
-        echo 'cPickle cPickle.c' >> Modules/Setup.local
-        #echo 'signal signalmodule.c' >> Modules/Setup.local  # comment out 'import subprocess'
-        echo '_io -I$(srcdir)/Modules/_io _io/bufferedio.c _io/bytesio.c _io/fileio.c _io/iobase.c _io/_iomodule.c _io/stringio.c _io/textio.c' >> Modules/Setup.local
-        echo '_random _randommodule.c' >> Modules/Setup.local
-        echo '_functools _functoolsmodule.c' >> Modules/Setup.local
-        echo 'datetime datetimemodule.c' >> Modules/Setup.local
-        echo 'zlib zlibmodule.c -I$(prefix)/include -L$(exec_prefix)/lib -lz' >> Modules/Setup.local
-        echo '_md5 md5module.c md5.c' >> Modules/Setup.local
-        echo 'array arraymodule.c' >> Modules/Setup.local
-	# avoid warnings from hashlib module
-        echo '_sha shamodule.c' >> Modules/Setup.local
-        echo '_sha256 sha256module.c' >> Modules/Setup.local
-        echo '_sha512 sha512module.c' >> Modules/Setup.local
-
-        #echo 'strop stropmodule.c' >> Modules/Setup.local  # for platform module -> use sys.platform
-        #echo 'zlib zlibmodule.c -I$(prefix)/include -L$(exec_prefix)/lib -lz' >> Modules/Setup.local
+	cat $SETUPLOCAL >> Modules/Setup.local
     
         emmake make -j$(nproc)
         emmake make install
     
         # Basic trimming
+	# Disabled for now, better cherry-pick the files we need
         #emmake make install DESTDIR=$(pwd)/destdir
         #find destdir/ -name "*.py" -print0 | xargs -r0 rm
         #find destdir/ -name "*.pyo" -print0 | xargs -r0 rm  # only keep .pyc, .pyo apparently don't work
@@ -135,16 +92,23 @@ emscripten () {
         #rm -rf destdir/usr/local/lib/*.a
         #rm -rf destdir/usr/local/lib/pkgconfig/
         #rm -rf destdir/usr/local/lib/python2.7/test/
-
         # Ditch .so for now, they cause an abort() with dynamic
         # linking unless we recompile all of them as SIDE_MODULE-s
-        rm -rf $INSTALLDIR/lib/python2.7/lib-dynload/
+        #rm -rf $PREFIX/lib/python2.7/lib-dynload/
     )
 }
 
-if [ "$1" = "" ]; then
-    echo "Usage: $0 native|emscripten"
-    exit 1
-fi
-
-"$1"
+case "$1" in
+    unpack|native|emscripten)
+	"$1"
+	;;
+    '')
+	unpack
+	native
+	emscripten
+	;;
+    *)
+	echo "Usage: $0 unpack|native|emscripten"
+	exit 1
+	;;
+esac
