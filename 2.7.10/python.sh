@@ -9,7 +9,7 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/install}
+DESTDIR=${DESTDIR:-$(dirname $(readlink -f $0))/destdir}
 SETUPLOCAL=${SETUPLOCAL:-'/dev/null'}
 
 CACHEROOT=$(dirname $(readlink -f $0))
@@ -63,7 +63,7 @@ emscripten () {
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
-                --prefix=$PREFIX \
+                --prefix=/ \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
 	fi
@@ -78,7 +78,8 @@ emscripten () {
 	cat $SETUPLOCAL >> Modules/Setup.local
     
         emmake make -j$(nproc)
-        emmake make install
+        emmake make install DESTDIR=$DESTDIR || true
+	# using ||true because setup.py wants to create '/lib' at a point (without DESTDIR)
     
         # Basic trimming
 	# Disabled for now, better cherry-pick the files we need
@@ -94,7 +95,7 @@ emscripten () {
         #rm -rf destdir/usr/local/lib/python2.7/test/
         # Ditch .so for now, they cause an abort() with dynamic
         # linking unless we recompile all of them as SIDE_MODULE-s
-        #rm -rf $PREFIX/lib/python2.7/lib-dynload/
+        #rm -rf $DESTDIR/lib/python2.7/lib-dynload/
     )
 }
 

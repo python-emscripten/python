@@ -1,3 +1,4 @@
-*/data/
 */build/
+*/destdir/
+*/package/
 */Python-*.tgz

@@ -11,11 +11,11 @@
 
 FILE_PACKAGER="python $(dirname $(which emcc))/tools/file_packager.py"
 
-PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/install}
-PACKAGEDIR=${PACKAGEDIR:-$(dirname $(readlink -f $0))/data}
+PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/destdir}
+PACKAGEDIR=${PACKAGEDIR:-$(dirname $(readlink -f $0))/package}
 OUTDIR=${OUTDIR:-.}
 
-# Python root
+# Python home
 
 # Hard-coded modules: for 'print "hello, world."'
 # $@: additional, app-specific modules
@@ -29,6 +29,6 @@ for i in $(cd $PREFIX/lib/python2.7/ && find site-packages/pygame_sdl2/ -name "*
 done
 
 $FILE_PACKAGER \
-    $OUTDIR/pyroot.data --js-output=$OUTDIR/pyroot-data.js \
+    $OUTDIR/pythonhome.data --js-output=$OUTDIR/pythonhome-data.js \
     --preload $PACKAGEDIR@/ \
     --use-preload-cache --no-heap-copy
