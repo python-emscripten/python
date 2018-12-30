@@ -48,7 +48,7 @@ cdef void callpyfunc_arg(void* p):
 
 
 def set_main_loop(py_function, fps, simulate_infinite_loop):
-    #print "def: set_main_loop", func, fps, simulate_infinite_loop
+    #print "def: set_main_loop", py_function, fps, simulate_infinite_loop
     emscripten_set_main_loop_arg(callpyfunc, <PyObject*>py_function, fps, simulate_infinite_loop)
 
 def async_call(func, arg, millis):
