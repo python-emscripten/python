@@ -45,7 +45,7 @@ native () {
         make -j$(nproc) Parser/pgen python
     
         make -j$(proc)
-        make install
+        DESTDIR= make install
     )
 }
 
