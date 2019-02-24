@@ -21,7 +21,7 @@ Last-Update: 2018-10-28
 +class EmscriptenBrowser(BaseBrowser):
 +    def open(self, url, new=0, autoraise=True):
 +        import emscripten
-+        emscripten.run_script("""try { window.open('%s', '_blank'); } catch (e) { console.log(e); }""" % url)
++        emscripten.run_script("""try { window.open('%s', '_blank'); } catch (e) { console.log(e); }""" % url.replace("'", "%27"))
 +        return True
 +
 +if sys.platform == 'emscripten':
