@@ -17,6 +17,10 @@ OUTDIR=${OUTDIR:-.}
 
 # Python home
 
+# optional lz4 compression, requires '-s LZ4=1'
+LZ4=
+if [ "$1" == "--lz4" ]; then LZ4="--lz4"; shift; fi
+
 rm -rf $PACKAGEDIR/
 mkdir -p $PACKAGEDIR
 
@@ -34,4 +38,4 @@ done
 $FILE_PACKAGER \
     $OUTDIR/pythonhome.data --js-output=$OUTDIR/pythonhome-data.js \
     --preload $PACKAGEDIR@/ \
-    --use-preload-cache --no-heap-copy
+    --use-preload-cache --no-heap-copy $LZ4
