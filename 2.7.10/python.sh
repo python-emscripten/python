@@ -40,7 +40,7 @@ native () {
                 --without-threads --without-pymalloc --disable-shared --disable-ipv6
         fi
         echo '*static*' > Modules/Setup.local
-	cat $SETUPLOCAL >> Modules/Setup.local
+        cat $SETUPLOCAL >> Modules/Setup.local
 
         make -j$(nproc) Parser/pgen python
     
@@ -58,7 +58,7 @@ emscripten () {
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
         # not needed as emcc has a single arch: BASECFLAGS=-m32 LDFLAGS=-m32
         # --without-threads: pthreads currently not yet usable in emscripten as of 2018-12
-	#   cf. https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
+        #   cf. https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
 
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' emconfigure ../configure \
@@ -66,7 +66,7 @@ emscripten () {
                 --prefix=/ \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
-	fi
+        fi
         sed -i -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
         # Modules/Setup.local
         emmake make Parser/pgen  # need to build it once before overwriting it with the native one
@@ -75,14 +75,14 @@ emscripten () {
         # note: PYTHON_FOR_BUILD=../native/python, PATH=... doesn't work, it breaks emcc's Python
         sed -i -e 's,\(PYTHON_FOR_BUILD=.*\) python2.7,\1 $(abs_srcdir)/native/python,' Makefile
         echo '*static*' > Modules/Setup.local
-	cat $SETUPLOCAL >> Modules/Setup.local
+        cat $SETUPLOCAL >> Modules/Setup.local
     
         emmake make -j$(nproc)
         emmake make install DESTDIR=$DESTDIR || true
-	# using ||true because setup.py wants to create '/lib' at a point (without DESTDIR)
+        # using ||true because setup.py wants to create '/lib' at a point (without DESTDIR)
     
         # Basic trimming
-	# Disabled for now, better cherry-pick the files we need
+        # Disabled for now, better cherry-pick the files we need
         #emmake make install DESTDIR=$(pwd)/destdir
         #find destdir/ -name "*.py" -print0 | xargs -r0 rm
         #find destdir/ -name "*.pyo" -print0 | xargs -r0 rm  # only keep .pyc, .pyo apparently don't work
@@ -101,15 +101,15 @@ emscripten () {
 
 case "$1" in
     unpack|native|emscripten)
-	"$1"
-	;;
+        "$1"
+        ;;
     '')
-	unpack
-	native
-	emscripten
-	;;
+        unpack
+        native
+        emscripten
+        ;;
     *)
-	echo "Usage: $0 unpack|native|emscripten"
-	exit 1
-	;;
+        echo "Usage: $0 unpack|native|emscripten"
+        exit 1
+        ;;
 esac
