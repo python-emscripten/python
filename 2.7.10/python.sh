@@ -61,7 +61,8 @@ emscripten () {
         #   cf. https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
 
         if [ ! -e config.status ]; then
-            CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' emconfigure ../configure \
+            CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' \
+                emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
                 --prefix=/ \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
@@ -76,6 +77,8 @@ emscripten () {
         sed -i -e 's,\(PYTHON_FOR_BUILD=.*\) python2.7,\1 $(abs_srcdir)/native/python,' Makefile
         echo '*static*' > Modules/Setup.local
         cat $SETUPLOCAL >> Modules/Setup.local
+        # drop -lz, we USE_ZLIB=1:
+        sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
     
         emmake make -j$(nproc)
         emmake make install DESTDIR=$DESTDIR || true
