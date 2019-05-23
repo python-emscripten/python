@@ -81,8 +81,9 @@ emscripten () {
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
     
         emmake make -j$(nproc)
-        emmake make install DESTDIR=$DESTDIR || true
-        # using ||true because setup.py wants to create '/lib' at a point (without DESTDIR)
+        # setup.py install_lib doesn't respect DESTDIR
+        echo -e 'sharedinstall:\n\ttrue' >> Makefile
+        emmake make install DESTDIR=$DESTDIR
     
         # Basic trimming
         # Disabled for now, better cherry-pick the files we need
