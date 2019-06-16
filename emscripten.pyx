@@ -73,4 +73,11 @@ def run_script(script):
     emscripten_run_script(script);
 
 def syncfs():
-    emscripten_run_script("FS.syncfs(false, function(err) { if (err) { console.trace(); console.log(err); } })");
+    emscripten_run_script("""
+        FS.syncfs(false, function(err) {
+            if (err) {
+                console.trace(); console.log(err, err.message);
+                Module.print("Warning: write error: " + err.message);
+            }
+        })
+    """);
