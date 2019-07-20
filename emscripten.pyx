@@ -16,6 +16,8 @@ cdef extern from "emscripten.h":
     void emscripten_sleep(unsigned int ms)
     void emscripten_sleep_with_yield(unsigned int ms)
     void emscripten_run_script(const char *script)
+    int emscripten_run_script_int(const char *script)
+    char *emscripten_run_script_string(const char *script)
     void emscripten_async_call(em_arg_callback_func func, void *arg, int millis)
 
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
@@ -71,6 +73,12 @@ def sleep_with_yield(ms):
 
 def run_script(script):
     emscripten_run_script(script);
+
+def run_script_int(script):
+    return emscripten_run_script_int(script);
+
+def run_script_string(script):
+    return emscripten_run_script_string(script);
 
 def syncfs():
     emscripten_run_script(r"""
