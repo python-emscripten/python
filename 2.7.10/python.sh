@@ -69,6 +69,10 @@ emscripten () {
                 --disable-shared
         fi
         sed -i -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
+	# Work-around network functions detection
+	# https://github.com/emscripten-core/emscripten/issues/9154
+	sed -i -e 's,^/\* #undef HAVE_GETPEERNAME \*/,#define HAVE_GETPEERNAME 1,' pyconfig.h
+	sed -i -e 's,^/\* #undef HAVE_GETNAMEINFO \*/,#define HAVE_GETNAMEINFO 1,' pyconfig.h
         # Modules/Setup.local
         emmake make Parser/pgen  # need to build it once before overwriting it with the native one
         \cp --preserve=mode ../native/Parser/pgen Parser/
