@@ -59,17 +59,12 @@
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
     </div>
     <hr/>
-    <div class="emscripten">
-      <input type="checkbox" id="resize">Resize canvas
-      <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
-      &nbsp;&nbsp;&nbsp;
-      <input type="button" value="Fullscreen" onclick="Module.requestFullscreen(document.getElementById('pointerLock').checked, 
-                                                                                document.getElementById('resize').checked)">
-    </div>
+    
+    <div class="emscripten"><a href="https://www.beuc.net/python-emscripten/python/dir?ci=tip">python-emscripten</a> bare-bones demo</div>
     
     <hr/>
     <textarea class="emscripten" id="output" rows="8"></textarea>
-    <input type="text" class="emscripten" id="input"></input>
+    <input type="text" class="emscripten" id="input" name="text" value="print({'hello':'world'})"></input>
     <hr>
 
     <script type='text/javascript'>
@@ -151,6 +146,8 @@
 
     <!-- Python webprompt -->
     <script type='text/javascript'>
+      Module['printErr'] = Module['print'];
+
       // Initialize Python if not already
       Module['onRuntimeInitialized'] = function() {
         // Module.cwrap('Py_Initialize', 'number', [])();
@@ -161,25 +158,27 @@
       var input = document.getElementById('input');
       input.onkeydown = function(ev) {
         if (ev.key === 'Enter') {
+          Module.print('>>> ' + input.value);
 
 	  // Execute Python code
           Module.cwrap('PyRun_SimpleString', 'number', ['string'])(input.value);
           // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [input.value]);
 
-          hist[hist_index] = input.value;
+          hist[hist.length-1] = input.value;
 	  hist.push('');
 	  hist_index = hist.length - 1;
           input.value = '';
         } else if (ev.key === 'ArrowUp') {
           hist[hist_index] = input.value;
-	  hist_index = (hist.length + hist_index + - 1) % hist.length;
+	  hist_index = (hist_index > 0) ? hist_index-1 : hist_index;
           input.value = hist[hist_index];
         } else if (ev.key === 'ArrowDown') {
           hist[hist_index] = input.value;
-	  hist_index = (hist_index + 1) % hist.length;
+	  hist_index = (hist_index < hist.length-1) ? hist_index+1 : hist_index;
           input.value = hist[hist_index];
         }
       };
+      input.focus();
     </script>
 
     {{{ SCRIPT }}}
