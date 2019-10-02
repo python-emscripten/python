@@ -14,7 +14,8 @@
 PyMODINIT_FUNC initemscripten(void);
 
 int main(int argc, char**argv) {
-  Py_Initialize();
+  Py_OptimizeFlag = 2;  // look for .pyo rather than .pyc
+  Py_InitializeEx(0);  // get rid of 'Calling stub instead of sigaction()'
   static struct _inittab builtins[] = { {"emscripten", initemscripten}, };
   PyImport_ExtendInittab(builtins);
   return 0;
