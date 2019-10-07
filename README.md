@@ -11,6 +11,8 @@ Usage:
 
 See for instance [RenPyWeb](https://github.com/renpy/renpyweb).
 
+Web demo: <https://www.beuc.net/python-emscripten/demo/>
+
 Mirrors:
 
 - <https://gitlab.com/python-emscripten/python>

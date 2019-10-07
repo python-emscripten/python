@@ -19,13 +19,18 @@ mkdir -p $BUILD
 
 cython ../emscripten.pyx -o $BUILD/emscripten.c
 emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.7
+PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh
 emcc -o $BUILD/webprompt.html \
   webprompt-main.c $BUILD/emscripten.c \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s USE_ZLIB=1 \
   -s TOTAL_MEMORY=256MB \
-  --preload-file $INSTALLDIR/lib/python2.7@/lib/python2.7 \
+  -s FORCE_FILESYSTEM=1 \
   --shell-file webprompt-shell.html \
-  -s EXPORTED_FUNCTIONS="['_main', '_malloc', '_Py_Initialize', '_PyRun_SimpleString']" \
+  -s EXPORTED_FUNCTIONS="['_main', '_malloc', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
+
+# cython ../mock/emscripten.pyx -o t/mock.c
+# gcc -g -I build/hostpython/include/python2.7 -L build/hostpython/lib/ t/mock.c webprompt-main.c -lpython2.7 -ldl -lm -lutil -lz
+# PYTHONHOME=build/hostpython/ ./a.out

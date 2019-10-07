@@ -64,7 +64,7 @@
     
     <hr/>
     <textarea class="emscripten" id="output" rows="8"></textarea>
-    <input type="text" class="emscripten" id="input" name="text" value="print({'hello':'world'})"></input>
+    <input type="text" class="emscripten" id="input" name="text" value="{'hello':'world'}"></input>
     <hr>
 
     <script type='text/javascript'>
@@ -160,26 +160,29 @@
         if (ev.key === 'Enter') {
           Module.print('>>> ' + input.value);
 
-	  // Execute Python code
-          Module.cwrap('PyRun_SimpleString', 'number', ['string'])(input.value);
+          // Execute Python code
+          // Module.cwrap('PyRun_SimpleString', 'number', ['string'])(input.value);
           // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [input.value]);
+          FS.writeFile('/tmp/input.py', input.value + '\n')
+          Module.ccall('pyruni');
 
           hist[hist.length-1] = input.value;
-	  hist.push('');
-	  hist_index = hist.length - 1;
+          hist.push('');
+          hist_index = hist.length - 1;
           input.value = '';
         } else if (ev.key === 'ArrowUp') {
           hist[hist_index] = input.value;
-	  hist_index = (hist_index > 0) ? hist_index-1 : hist_index;
+          hist_index = (hist_index > 0) ? hist_index-1 : hist_index;
           input.value = hist[hist_index];
         } else if (ev.key === 'ArrowDown') {
           hist[hist_index] = input.value;
-	  hist_index = (hist_index < hist.length-1) ? hist_index+1 : hist_index;
+          hist_index = (hist_index < hist.length-1) ? hist_index+1 : hist_index;
           input.value = hist[hist_index];
         }
       };
       input.focus();
     </script>
+    <script type='text/javascript' src="pythonhome-data.js"></script>
 
     {{{ SCRIPT }}}
   </body>
