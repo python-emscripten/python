@@ -124,7 +124,7 @@ def async_wget_data(url, arg, onload, onerror=None):
     Py_XINCREF(s.onerror)
     Py_XINCREF(s.arg)
     emscripten_async_wget_data(url, <void*>s, callpyfunc_async_wget_onload, callpyfunc_async_wget_onerror)
-# emscripten.async_wget_data('http://localhost:8000/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"d/l error\n"))
+# emscripten.async_wget_data('/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+"\n"+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"\nd/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None, lambda arg: sys.stdout.write("d/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None)
 
