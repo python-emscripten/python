@@ -24,6 +24,54 @@ cdef extern from "emscripten.h":
     #void emscripten_async_wget(const char* url, const char* file, em_str_callback_func onload, em_str_callback_func onerror)
     void emscripten_async_wget_data(const char* url, void *arg, em_async_wget_onload_func onload, em_arg_callback_func onerror)
 
+cdef extern from "emscripten/html5.h":
+    ctypedef int EM_BOOL
+    enum: EM_TRUE
+    enum: EM_FALSE
+
+from libc.stdint cimport uint32_t
+
+cdef extern from "emscripten/fetch.h":
+    ctypedef struct emscripten_fetch_t:
+        pass
+    ctypedef struct emscripten_fetch_attr_t:
+        char requestMethod[32]
+        void *userData
+        void (*onsuccess)(emscripten_fetch_t *fetch)
+        void (*onerror)(emscripten_fetch_t *fetch)
+        void (*onprogress)(emscripten_fetch_t *fetch)
+        void (*onreadystatechange)(emscripten_fetch_t *fetch)
+        uint32_t attributes
+        unsigned long timeoutMSecs
+        EM_BOOL withCredentials
+        const char *destinationPath
+        const char *userName
+        const char *password
+        const char * const *requestHeaders
+        const char *overriddenMimeType
+        const char *requestData
+        size_t requestDataSize
+
+    enum:
+        EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
+        EMSCRIPTEN_FETCH_STREAM_DATA
+        EMSCRIPTEN_FETCH_PERSIST_FILE
+        EMSCRIPTEN_FETCH_APPEND
+        EMSCRIPTEN_FETCH_REPLACE
+        EMSCRIPTEN_FETCH_NO_DOWNLOAD
+        EMSCRIPTEN_FETCH_SYNCHRONOUS
+        EMSCRIPTEN_FETCH_WAITABLE
+
+FETCH_LOAD_TO_MEMORY = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
+FETCH_STREAM_DATA = EMSCRIPTEN_FETCH_STREAM_DATA
+FETCH_PERSIST_FILE = EMSCRIPTEN_FETCH_PERSIST_FILE
+FETCH_APPEND = EMSCRIPTEN_FETCH_APPEND
+FETCH_REPLACE = EMSCRIPTEN_FETCH_REPLACE
+FETCH_NO_DOWNLOAD = EMSCRIPTEN_FETCH_NO_DOWNLOAD
+FETCH_SYNCHRONOUS = EMSCRIPTEN_FETCH_SYNCHRONOUS
+FETCH_WAITABLE = EMSCRIPTEN_FETCH_WAITABLE
+
+
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
 from libc.stdlib cimport malloc, free
 # https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
