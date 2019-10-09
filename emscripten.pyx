@@ -108,13 +108,14 @@ cdef void callpyfunc_async_wget_onload(void* p, void* buf, int size):
     free(s)
 cdef void callpyfunc_async_wget_onerror(void* p):
     s = <callpyfunc_async_wget_s*>p
-    (<object>(s.onerror))(<object>(s.arg))
+    if <object>s.onerror is not None:
+        (<object>(s.onerror))(<object>(s.arg))
     Py_XDECREF(s.onload)
     Py_XDECREF(s.onerror)
     Py_XDECREF(s.arg)
     free(s)
 
-def async_wget_data(url, arg, onload, onerror):
+def async_wget_data(url, arg, onload, onerror=None):
     cdef callpyfunc_async_wget_s* s = <callpyfunc_async_wget_s*> malloc(sizeof(callpyfunc_async_wget_s))
     s.onload = <PyObject*>onload
     s.onerror = <PyObject*>onerror
@@ -123,7 +124,9 @@ def async_wget_data(url, arg, onload, onerror):
     Py_XINCREF(s.onerror)
     Py_XINCREF(s.arg)
     emscripten_async_wget_data(url, <void*>s, callpyfunc_async_wget_onload, callpyfunc_async_wget_onerror)
-# emscripten.async_wget_data('http://localhost:8000/', None, lambda arg,buf: sys.stdout.write(repr(buf)+"\n"), lambda arg: sys.stdout.write("d/l error\n"))
+# emscripten.async_wget_data('http://localhost:8000/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"d/l error\n"))
+# emscripten.async_wget_data('https://bank.confidential/', None, None, lambda arg: sys.stdout.write("d/l error\n"))
+# emscripten.async_wget_data('https://bank.confidential/', None, None)
 
 def syncfs():
     emscripten_run_script(r"""
