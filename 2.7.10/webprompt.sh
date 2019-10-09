@@ -20,7 +20,7 @@ mkdir -p $BUILD
 cython ../emscripten.pyx -o $BUILD/emscripten.c
 emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.7
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh
-emcc -o $BUILD/webprompt.html \
+emcc -o $BUILD/index.html \
   webprompt-main.c $BUILD/emscripten.c \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
