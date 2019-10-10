@@ -64,7 +64,7 @@ emscripten () {
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' \
                 emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
-                --prefix=/ \
+                --prefix='' \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
         fi
