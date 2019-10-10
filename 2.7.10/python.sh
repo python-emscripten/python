@@ -2,7 +2,7 @@
 
 # Compile minimal Python for Emscripten and native local testing
 
-# Copyright (C) 2018  Sylvain Beucler
+# Copyright (C) 2018, 2019  Sylvain Beucler
 
 # Copying and distribution of this file, with or without modification,
 # are permitted in any medium without royalty provided the copyright
@@ -87,8 +87,10 @@ emscripten () {
         emmake make -j$(nproc)
         # setup.py install_lib doesn't respect DESTDIR
         echo -e 'sharedinstall:\n\ttrue' >> Makefile
+        # decrease .pyo size by dropping docstrings
+        sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
         emmake make install DESTDIR=$DESTDIR
-    
+
         # Basic trimming
         # Disabled for now, better cherry-pick the files we need
         #emmake make install DESTDIR=$(pwd)/destdir
