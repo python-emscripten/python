@@ -19,13 +19,17 @@ mkdir -p $BUILD
 
 cython ../emscripten.pyx -o $BUILD/emscripten.c
 emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.7
-PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh
+# utf_32_be: support Unicode characters e.g. u'é'
+PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
+    encodings/utf_32_be.py
+# -s ASSERTIONS=1 -g
 emcc -o $BUILD/index.html \
   webprompt-main.c $BUILD/emscripten.c \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
   -O3 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s USE_ZLIB=1 \
+  -s FETCH=1 \
   -s TOTAL_MEMORY=256MB \
   -s FORCE_FILESYSTEM=1 \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \

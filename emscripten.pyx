@@ -26,14 +26,13 @@ cdef extern from "emscripten.h":
 
 cdef extern from "emscripten/html5.h":
     ctypedef int EM_BOOL
+    ctypedef int EMSCRIPTEN_RESULT
     enum: EM_TRUE
     enum: EM_FALSE
 
-from libc.stdint cimport uint32_t
+from libc.stdint cimport uint32_t, uint64_t
 
 cdef extern from "emscripten/fetch.h":
-    ctypedef struct emscripten_fetch_t:
-        pass
     ctypedef struct emscripten_fetch_attr_t:
         char requestMethod[32]
         void *userData
@@ -52,6 +51,20 @@ cdef extern from "emscripten/fetch.h":
         const char *requestData
         size_t requestDataSize
 
+    ctypedef struct emscripten_fetch_t:
+        unsigned int id
+        void *userData
+        const char *url
+        const char *data
+        uint64_t numBytes
+        uint64_t dataOffset
+        uint64_t totalBytes
+        unsigned short readyState
+        unsigned short status
+        char statusText[64]
+        uint32_t __proxyState
+        emscripten_fetch_attr_t __attributes
+
     enum:
         EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
         EMSCRIPTEN_FETCH_STREAM_DATA
@@ -61,6 +74,15 @@ cdef extern from "emscripten/fetch.h":
         EMSCRIPTEN_FETCH_NO_DOWNLOAD
         EMSCRIPTEN_FETCH_SYNCHRONOUS
         EMSCRIPTEN_FETCH_WAITABLE
+
+    void emscripten_fetch_attr_init(emscripten_fetch_attr_t *fetch_attr)
+    emscripten_fetch_t *emscripten_fetch(emscripten_fetch_attr_t *fetch_attr, const char *url)
+    #EMSCRIPTEN_RESULT emscripten_fetch_wait(emscripten_fetch_t *fetch, double timeoutMSecs)
+    EMSCRIPTEN_RESULT emscripten_fetch_close(emscripten_fetch_t *fetch)
+    #size_t emscripten_fetch_get_response_headers_length(emscripten_fetch_t *fetch)
+    #size_t emscripten_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst, size_t dstSizeBytes)
+    #char **emscripten_fetch_unpack_response_headers(const char *headersString)
+    #void emscripten_fetch_free_unpacked_response_headers(char **unpackedHeaders)
 
 FETCH_LOAD_TO_MEMORY = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
 FETCH_STREAM_DATA = EMSCRIPTEN_FETCH_STREAM_DATA
@@ -74,9 +96,11 @@ FETCH_WAITABLE = EMSCRIPTEN_FETCH_WAITABLE
 
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
 from libc.stdlib cimport malloc, free
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 # https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
 from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
 
+from libc.string cimport strncpy
 
 #cdef extern from "stdio.h":
 #    int puts(const char *s);
@@ -175,6 +199,119 @@ def async_wget_data(url, arg, onload, onerror=None):
 # emscripten.async_wget_data('/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+"\n"+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"\nd/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None, lambda arg: sys.stdout.write("d/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None)
+
+
+cdef struct callpyfunc_fetch_s:
+    PyObject* py_fetch_attr
+
+cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* cb_name):
+    s = <callpyfunc_fetch_s*>(fetch.userData)
+    py_fetch_attr = <dict>(s.py_fetch_attr)
+    # TODO: create a true py_emscripten_fetch_t object?
+    f = {
+        'id': fetch.id,
+        'userData': py_fetch_attr.get('userData', None),
+        'url': fetch.url.decode('UTF-8'),
+        'data': fetch.data[:fetch.numBytes],
+        'dataOffset': fetch.dataOffset,
+        'totalBytes': fetch.totalBytes,
+        'readyState': fetch.readyState,
+        'status': fetch.status,
+        'statusText': fetch.statusText,
+    }
+    if py_fetch_attr.get(cb_name, None) is not None:
+        (<object>(py_fetch_attr[cb_name]))(f)
+
+# one of {onsuccess,onerror} is guaranteed to run, free memory there
+cdef void callpyfunc_fetch_onsuccess(emscripten_fetch_t *fetch):
+    callpyfunc_fetch_callback(fetch, "onsuccess")
+    fetch_pyfree(fetch)
+cdef void callpyfunc_fetch_onerror(emscripten_fetch_t *fetch):
+    callpyfunc_fetch_callback(fetch, "onerror")
+    fetch_pyfree(fetch)
+cdef void callpyfunc_fetch_onprogress(emscripten_fetch_t *fetch):
+    callpyfunc_fetch_callback(fetch, "onprogress")
+cdef void callpyfunc_fetch_onreadystatechange(emscripten_fetch_t *fetch):
+    callpyfunc_fetch_callback(fetch, "onreadystatechange")
+
+# Currently unsafe:
+# https://github.com/emscripten-core/emscripten/issues/8234
+#def fetch_close(fetch):
+    # TODO: wrap emscripten_fetch_t
+    #fetch_pyfree(*fetch)
+    #emscripten_fetch_close(fetch)
+    #PyMem_Free(fetch)
+    pass
+
+cdef fetch_pyfree(emscripten_fetch_t *fetch):
+    s = <callpyfunc_fetch_s*>(fetch.userData)
+    Py_XDECREF(s.py_fetch_attr)
+    PyMem_Free(fetch.userData)
+    fetch.userData = NULL
+    emscripten_fetch_close(fetch)
+
+def fetch(py_fetch_attr, url):
+    cdef emscripten_fetch_attr_t attr
+    emscripten_fetch_attr_init(&attr)
+    
+    if py_fetch_attr.has_key('requestMethod'):
+        strncpy(attr.requestMethod,
+            py_fetch_attr['requestMethod'].encode('UTF-8'),
+            sizeof(attr.requestMethod) - 1)
+
+    cdef callpyfunc_fetch_s* s = <callpyfunc_fetch_s*> PyMem_Malloc(sizeof(callpyfunc_fetch_s))
+    s.py_fetch_attr = <PyObject*>py_fetch_attr
+    Py_XINCREF(s.py_fetch_attr)
+    attr.userData = s
+
+    attr.onsuccess = callpyfunc_fetch_onsuccess
+    attr.onerror = callpyfunc_fetch_onerror
+    attr.onprogress = callpyfunc_fetch_onprogress
+    attr.onreadystatechange = callpyfunc_fetch_onreadystatechange
+
+    if py_fetch_attr.has_key('attributes'):
+        attr.attributes = py_fetch_attr['attributes']
+    if py_fetch_attr.has_key('timeoutMSecs'):
+        attr.timeoutMSecs = py_fetch_attr['timeoutMSecs']
+    if py_fetch_attr.has_key('withCredentials'):
+        attr.withCredentials = py_fetch_attr['withCredentials']
+    if py_fetch_attr.has_key('destinationPath'):
+        ref_destinationPath = py_fetch_attr['destinationPath'].encode('UTF-8')
+        attr.destinationPath = ref_destinationPath
+    if py_fetch_attr.has_key('userName'):
+        ref_userName = py_fetch_attr['userName'].encode('UTF-8')
+        attr.userName = ref_userName
+    if py_fetch_attr.has_key('password'):
+        ref_password = py_fetch_attr['password'].encode('UTF-8')
+        attr.password = ref_password
+
+    # TODO:
+    #const char * const *requestHeaders
+
+    if py_fetch_attr.has_key('overriddenMimeType'):
+        ref_overridenMimeType = py_fetch_attr['overriddenMimeType'].encode('UTF-8')
+        attr.overriddenMimeType = ref_overridenMimeType
+
+    if py_fetch_attr.has_key('requestData'):
+        size = len(py_fetch_attr['requestData'])
+        ref_requestData = py_fetch_attr['requestData'][:size]
+        attr.requestData = ref_requestData
+        attr.requestDataSize = size
+
+    ret = emscripten_fetch(&attr, url.encode('UTF-8'))
+
+    # TODO: wrap ret
+    #return ret
+
+# import emscripten,sys; emscripten.fetch({}, '/')
+# import emscripten,sys; emscripten.fetch({'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}, '/')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
+# import emscripten,sys; fetch_attr={'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # no output
+# import emscripten,sys; emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AAéBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
+
 
 def syncfs():
     emscripten_run_script(r"""
