@@ -29,7 +29,7 @@ emcc -o $BUILD/index.html \
   -O3 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s USE_ZLIB=1 \
-  -s FETCH=1 -s FETCH_DEBUG=1 \
+  -s FETCH=1 \
   -s TOTAL_MEMORY=256MB \
   -s FORCE_FILESYSTEM=1 \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
