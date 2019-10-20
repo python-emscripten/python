@@ -311,6 +311,7 @@ def fetch(py_fetch_attr, url):
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AAéBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
 
 
 def syncfs():
