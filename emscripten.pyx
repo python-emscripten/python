@@ -172,12 +172,13 @@ cdef struct callpyfunc_async_wget_s:
 cdef void callpyfunc_async_wget_onload(void* p, void* buf, int size):
     s = <callpyfunc_async_wget_s*>p
     # https://cython.readthedocs.io/en/latest/src/tutorial/strings.html#passing-byte-strings
-    py_buf = (<char*>buf)[:size]  # TODO: avoid copy
+    py_buf = (<char*>buf)[:size]  # TODO: avoid copy?
     (<object>(s.onload))(<object>(s.arg), py_buf)
     Py_XDECREF(s.onload)
     Py_XDECREF(s.onerror)
     Py_XDECREF(s.arg)
     free(s)
+    # 'buf' freed by emscripten
 cdef void callpyfunc_async_wget_onerror(void* p):
     s = <callpyfunc_async_wget_s*>p
     if <object>s.onerror is not None:
