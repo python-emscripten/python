@@ -253,6 +253,16 @@ cdef fetch_pyfree(emscripten_fetch_t *fetch):
 def fetch(py_fetch_attr, url):
     cdef emscripten_fetch_attr_t attr
     emscripten_fetch_attr_init(&attr)
+
+    VALID_ATTRS = (
+        'requestMethod', 'userData',
+        'onsuccess', 'onerror', 'onprogress', 'onreadystatechange',
+        'attributes', 'timeoutMSecs', 'withCredentials',
+        'destinationPath', 'userName', 'password',
+        'requestHeaders', 'overriddenMimeType', 'requestData')
+    for k in py_fetch_attr.keys():
+        if k not in VALID_ATTRS:
+            print('emscripten: fetch: invalid attribute ' + k)
     
     if py_fetch_attr.has_key('requestMethod'):
         strncpy(attr.requestMethod,
@@ -285,8 +295,21 @@ def fetch(py_fetch_attr, url):
         ref_password = py_fetch_attr['password'].encode('UTF-8')
         attr.password = ref_password
 
-    # TODO:
-    #const char * const *requestHeaders
+    cdef char** headers
+    if py_fetch_attr.has_key('requestHeaders'):
+        ref_requestHeaders = []
+        size = (2 * len(py_fetch_attr['requestHeaders']) + 1 ) * sizeof(char*)
+        headers = <char**>PyMem_Malloc(size)
+        i = 0
+        for name,value in py_fetch_attr['requestHeaders'].items():
+            ref_requestHeaders.append(name.encode('UTF-8'))
+            headers[i] = ref_requestHeaders[i]
+            i += 1
+            ref_requestHeaders.append(value.encode('UTF-8'))
+            headers[i] = ref_requestHeaders[i]
+            i += 1
+        headers[i] = NULL
+        attr.requestHeaders = <const char* const *>headers
 
     if py_fetch_attr.has_key('overriddenMimeType'):
         ref_overridenMimeType = py_fetch_attr['overriddenMimeType'].encode('UTF-8')
@@ -300,18 +323,27 @@ def fetch(py_fetch_attr, url):
 
     ret = emscripten_fetch(&attr, url.encode('UTF-8'))
 
-    # TODO: wrap ret
+    if py_fetch_attr.has_key('requestHeaders'):
+        PyMem_Free(<void*>attr.requestHeaders)
+
+    # TODO: wrap ret so we can use fetch_*_response_headers()
     #return ret
+
+    # ref_* variables are deref'd here, make them unique
+    # (otherwise invalid pointers in 'attr').  Test with:
+    # print(attr.overriddenMimeType, attr.destinationPath, attr.userName, attr.password)
 
 # import emscripten,sys; emscripten.fetch({}, '/')
 # import emscripten,sys; emscripten.fetch({'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}, '/')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
 # import emscripten,sys; fetch_attr={'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # no output
+# TODO: ^^^ store onxxxxx in callpyfunc_fetch_s
 # import emscripten,sys; emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AAéBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
 
 
 def syncfs():
