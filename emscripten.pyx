@@ -7,6 +7,10 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
+# TODO: http://docs.cython.org/en/latest/src/tutorial/strings.html#auto-encoding-and-decoding
+# Most of our strings are then converted to JS through UTF8ToString()
+# so auto-UTF-8 instead of .encode('UTF-8') sounds good
+
 cdef extern from "emscripten.h":
     ctypedef void (*em_callback_func)()
     ctypedef void (*em_arg_callback_func)(void*)
@@ -213,6 +217,7 @@ cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* cb_name):
     py_fetch_attr = <dict>(s.py_fetch_attr)
 
     # TODO: create a py_emscripten_fetch_t Python object?
+    # http://docs.cython.org/en/latest/src/userguide/extension_types.html
     # TODO: possibly with a buffer interface + call fetch_close() on deref
     #cdef char[:] data
     #cdef view.array data
@@ -263,6 +268,7 @@ cdef fetch_pyfree(emscripten_fetch_t *fetch):
     emscripten_fetch_close(fetch)
 
 def fetch(py_fetch_attr, url):
+    # TODO: dict -> keyword args?
     VALID_ATTRS = (
         'requestMethod', 'userData',
         'onsuccess', 'onerror', 'onprogress', 'onreadystatechange',
