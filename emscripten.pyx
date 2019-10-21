@@ -102,6 +102,9 @@ from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
 
 from libc.string cimport strncpy
 
+from cpython.oldbuffer cimport PyBuffer_FromMemory
+#from cython cimport view
+
 #cdef extern from "stdio.h":
 #    int puts(const char *s);
 
@@ -161,7 +164,7 @@ def run_script_string(script):
 # callpyfunc_arg as callback (so we can call a Python function)
 # Perhaps doable if we maintain a list of Python callbacks indexed by 'file' (and ignore potential conflict)
 # Or dynamically generate C callbacks in WebAssembly but I doubt that's simple.
-# Or implement it with async_wget_data + write output file manually
+# Or implement it with async_wget_data + write output file manually (implies an additional copy)
 #def async_wget(url, file, onload, onerror):
 #    pass
 
@@ -208,14 +211,22 @@ cdef struct callpyfunc_fetch_s:
 cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* cb_name):
     s = <callpyfunc_fetch_s*>(fetch.userData)
     py_fetch_attr = <dict>(s.py_fetch_attr)
+
     # TODO: create a py_emscripten_fetch_t Python object?
+    # TODO: possibly with a buffer interface + call fetch_close() on deref
+    #cdef char[:] data
+    #cdef view.array data
+    if fetch.data != NULL:
+        #data = fetch.data[:fetch.numBytes]  # copy
+        data = PyBuffer_FromMemory(<void*>fetch.data, fetch.numBytes)
+        #data = <char[:fetch.numBytes]> fetch.data
     f = {
         'id': fetch.id,
         'userData': py_fetch_attr.get('userData', None),
         'url': fetch.url.decode('UTF-8'),
-        'data': fetch.data[:fetch.numBytes],  # TODO: avoid copy
+        'data': (fetch.data != NULL) and data or None,
         'dataOffset': fetch.dataOffset,
-        'totalBytes': fetch.totalBytes,
+        'totalBytes': fetch.totalBytes,  # Content-Length
         'readyState': fetch.readyState,
         'status': fetch.status,
         'statusText': fetch.statusText,
@@ -280,8 +291,10 @@ def fetch(py_fetch_attr, url):
 
     attr.onsuccess = callpyfunc_fetch_onsuccess
     attr.onerror = callpyfunc_fetch_onerror
-    attr.onprogress = callpyfunc_fetch_onprogress
-    attr.onreadystatechange = callpyfunc_fetch_onreadystatechange
+    if py_fetch_attr.has_key('onprogress'):
+        attr.onprogress = callpyfunc_fetch_onprogress
+    if py_fetch_attr.has_key('onreadystatechange'):
+        attr.onreadystatechange = callpyfunc_fetch_onreadystatechange
 
     if py_fetch_attr.has_key('attributes'):
         attr.attributes = py_fetch_attr['attributes']
@@ -301,7 +314,7 @@ def fetch(py_fetch_attr, url):
 
     cdef char** headers
     if py_fetch_attr.has_key('requestHeaders'):
-        size = (2 * len(py_fetch_attr['requestHeaders']) + 1 ) * sizeof(char*)
+        size = (2 * len(py_fetch_attr['requestHeaders']) + 1) * sizeof(char*)
         headers = <char**>PyMem_Malloc(size)
         i = 0
         for name,value in py_fetch_attr['requestHeaders'].items():
@@ -321,13 +334,13 @@ def fetch(py_fetch_attr, url):
     if py_fetch_attr.has_key('requestData'):
         size = len(py_fetch_attr['requestData'])
         attr.requestDataSize = size
-        # direct pointer, no UTF-8 encoding:
+        # direct pointer, no UTF-8 encoding pass:
         attr.requestData = py_fetch_attr['requestData']
 
     # Fetch
     ret = emscripten_fetch(&attr, url.encode('UTF-8'))
 
-    # Free all Python string refs.  Test for forgotten refs with e.g.:
+    # Explicitely deref temporary Python strings.  Test for forgotten refs with e.g.:
     # print(attr.overriddenMimeType, attr.destinationPath, attr.userName, attr.password)
     del py_str_refs
 
@@ -337,18 +350,18 @@ def fetch(py_fetch_attr, url):
     # TODO: wrap ret so we can use fetch_*_response_headers()
     #return ret
 
-# import emscripten,sys; emscripten.fetch({}, '/')
-# import emscripten,sys; emscripten.fetch({'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}, '/')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
-# import emscripten,sys; fetch_attr={'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # no output
+# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n");
+# #Module.cwrap('PyRun_SimpleString', 'number', ['string'])("def g(x):\n    global a; a=x")
+# emscripten.fetch({'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}, '/')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
+# fetch_attr={'onsuccess':f; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # no output
 # TODO: ^^^ store onxxxxx in callpyfunc_fetch_s
-# import emscripten,sys; emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AA\xffBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
-# import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n"); emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
-
+# emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
+# emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AA\xffBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
 
 def syncfs():
     emscripten_run_script(r"""
