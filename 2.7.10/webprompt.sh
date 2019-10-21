@@ -17,7 +17,7 @@ BUILD=t
 
 mkdir -p $BUILD
 
-cython ../emscripten.pyx -o $BUILD/emscripten.c
+cython -2 ../emscripten.pyx -o $BUILD/emscripten.c
 emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.7
 # utf_32_be: support Unicode characters e.g. u'é'
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
