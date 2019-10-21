@@ -7,9 +7,10 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-# TODO: http://docs.cython.org/en/latest/src/tutorial/strings.html#auto-encoding-and-decoding
-# Most of our strings are then converted to JS through UTF8ToString()
-# so auto-UTF-8 instead of .encode('UTF-8') sounds good
+# http://docs.cython.org/en/latest/src/tutorial/strings.html#auto-encoding-and-decoding
+# Most of our strings are converted from/to JS through emscripten stringToUTF8/UTF8ToString
+# cython: c_string_type=unicode, c_string_encoding=utf8
+# Note: Py->C auto-UTF-8 (instead of .encode('UTF-8')) not supported for Py2
 
 cdef extern from "emscripten.h":
     ctypedef void (*em_callback_func)()
@@ -155,13 +156,13 @@ def sleep_with_yield(ms):
     emscripten_sleep_with_yield(ms)
 
 def run_script(script):
-    emscripten_run_script(script);
+    emscripten_run_script(script.encode('UTF-8'));
 
 def run_script_int(script):
-    return emscripten_run_script_int(script);
+    return emscripten_run_script_int(script.encode('UTF-8'));
 
 def run_script_string(script):
-    return emscripten_run_script_string(script);
+    return emscripten_run_script_string(script.encode('UTF-8'));
 
 # async_wget
 # Requires a C function without parameter, while we need to set
@@ -203,7 +204,7 @@ def async_wget_data(url, arg, onload, onerror=None):
     Py_XINCREF(s.onload)
     Py_XINCREF(s.onerror)
     Py_XINCREF(s.arg)
-    emscripten_async_wget_data(url, <void*>s, callpyfunc_async_wget_onload, callpyfunc_async_wget_onerror)
+    emscripten_async_wget_data(url.encode('UTF-8'), <void*>s, callpyfunc_async_wget_onload, callpyfunc_async_wget_onerror)
 # emscripten.async_wget_data('/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+"\n"+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"\nd/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None, lambda arg: sys.stdout.write("d/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None)
@@ -228,7 +229,7 @@ cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* cb_name):
     f = {
         'id': fetch.id,
         'userData': py_fetch_attr.get('userData', None),
-        'url': fetch.url.decode('UTF-8'),
+        'url': fetch.url,
         'data': (fetch.data != NULL) and data or None,
         'dataOffset': fetch.dataOffset,
         'totalBytes': fetch.totalBytes,  # Content-Length
