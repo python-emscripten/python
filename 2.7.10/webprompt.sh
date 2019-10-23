@@ -22,18 +22,22 @@ emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.
 # utf_32_be: support Unicode characters e.g. u'é'
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
     encodings/utf_32_be.py
-# -s ASSERTIONS=1 -g -s FETCH_DEBUG=1
+
+FLAGS='-O3'
+if [ "$1" == "debug" ]; then
+    FLAGS='-s ASSERTIONS=1 -g -s FETCH_DEBUG=1'
+fi
 emcc -o $BUILD/index.html \
   webprompt-main.c $BUILD/emscripten.c \
+  $FLAGS \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
-  -O3 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s USE_ZLIB=1 \
   -s FETCH=1 \
   -s TOTAL_MEMORY=256MB \
   -s FORCE_FILESYSTEM=1 \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
-  -s EXPORTED_FUNCTIONS="['_main', '_malloc', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
+  -s EXPORTED_FUNCTIONS="['_main', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
 
 # cython ../mock/emscripten.pyx -o t/mock.c
