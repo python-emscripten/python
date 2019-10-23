@@ -11,6 +11,9 @@
 # Most of our strings are converted from/to JS through emscripten stringToUTF8/UTF8ToString
 # cython: c_string_type=unicode, c_string_encoding=utf8
 # Note: Py->C auto-UTF-8 (instead of .encode('UTF-8')) not supported for Py2
+# Note: causes issues with Typed Memoryviews
+
+from __future__ import print_function
 
 cdef extern from "emscripten.h":
     ctypedef void (*em_callback_func)()
@@ -105,10 +108,9 @@ from cpython.mem cimport PyMem_Malloc, PyMem_Free
 # https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
 from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
 
-from libc.string cimport strncpy
+from cpython.buffer cimport PyBuffer_FillInfo
 
-from cpython.oldbuffer cimport PyBuffer_FromMemory
-#from cython cimport view
+from libc.string cimport strncpy
 
 #cdef extern from "stdio.h":
 #    int puts(const char *s);
@@ -210,65 +212,95 @@ def async_wget_data(url, arg, onload, onerror=None):
 # emscripten.async_wget_data('https://bank.confidential/', None, None)
 
 
-cdef struct callpyfunc_fetch_s:
-    PyObject* py_fetch_attr
 
-cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* cb_name):
-    s = <callpyfunc_fetch_s*>(fetch.userData)
-    py_fetch_attr = <dict>(s.py_fetch_attr)
+# http://docs.cython.org/en/latest/src/userguide/extension_types.html
+cdef class Fetch:
+    cdef emscripten_fetch_t *fetch
+    cdef callbacks
 
-    # TODO: create a py_emscripten_fetch_t Python object?
-    # http://docs.cython.org/en/latest/src/userguide/extension_types.html
-    # TODO: possibly with a buffer interface + call fetch_close() on deref
-    #cdef char[:] data
-    #cdef view.array data
-    if fetch.data != NULL:
-        #data = fetch.data[:fetch.numBytes]  # copy
-        data = PyBuffer_FromMemory(<void*>fetch.data, fetch.numBytes)
-        #data = <char[:fetch.numBytes]> fetch.data
-    f = {
-        'id': fetch.id,
-        'userData': py_fetch_attr.get('userData', None),
-        'url': fetch.url,
-        'data': (fetch.data != NULL) and data or None,
-        'dataOffset': fetch.dataOffset,
-        'totalBytes': fetch.totalBytes,  # Content-Length
-        'readyState': fetch.readyState,
-        'status': fetch.status,
-        'statusText': fetch.statusText,
-    }
-    if py_fetch_attr.get(cb_name, None) is not None:
-        (<object>(py_fetch_attr[cb_name]))(f)
+    # Can't pass C types to __init__/__cinit__
+    # Also ensure self.fetch is always set
+    def __init__(self):
+        raise Exception("use emscripten.fetch()")
 
-# one of {onsuccess,onerror} is guaranteed to run, free memory there
+    def __dealloc__(self):
+        emscripten_fetch_close(self.fetch)
+
+    # Currently unsafe:
+    # https://github.com/emscripten-core/emscripten/issues/8234
+    #def fetch_close(fetch):
+    #    pass
+
+    # http://docs.cython.org/en/latest/src/userguide/buffer.html
+    # https://docs.python.org/3/c-api/typeobj.html#c.PyBufferProcs.bf_getbuffer
+    # https://docs.python.org/3/c-api/buffer.html#c.PyObject_GetBuffer
+    # https://docs.python.org/3/c-api/buffer.html#c.PyBuffer_FillInfo
+    def __getbuffer__(self, Py_buffer *view, int flags):
+        if self.fetch.data != NULL:
+            readonly = 1
+            PyBuffer_FillInfo(view, self, <void*>self.fetch.data, self.fetch.numBytes, readonly, flags)
+        else:
+            view.obj = None
+            raise BufferError
+    def __releasebuffer__(self, Py_buffer *view):
+        pass
+
+    def __repr__(self):
+        return u'<Fetch: id={}, userData={}, url={}, data={}, dataOffset={}, totalBytes={}, readyState={}, status={}, statusText={}>'.format(repr(self.id), repr(self.userData), repr(self.url), repr(self.data), repr(self.dataOffset), repr(self.totalBytes), repr(self.readyState), repr(self.status), repr(self.statusText))
+
+    @property
+    def id(self):
+        return self.fetch.id
+    cdef readonly userData
+    @property
+    def url(self):
+        #return self.fetch.url.decode('UTF-8')
+        return self.fetch.url  # c_string_encoding
+    @property
+    def data(self):
+        if self.fetch.data != NULL:
+            return memoryview(self)
+        else:
+            return None
+    @property
+    def dataOffset(self):
+        return self.fetch.dataOffset
+    @property
+    def totalBytes(self):
+        return self.fetch.totalBytes  # Content-Length
+    @property
+    def readyState(self):
+        return self.fetch.readyState
+    @property
+    def status(self):
+        return self.fetch.status
+    @property
+    def statusText(self):
+        #return self.fetch.statusText.decode('UTF-8')
+        return self.fetch.statusText  # c_string_encoding
+
+cdef void callpyfunc_fetch_callback(emscripten_fetch_t *fetch, char* callback_name):
+    cdef Fetch py_fetch = <Fetch>fetch.userData
+    # for theoretical concurrency, if we're called during emscripten_fetch()
+    py_fetch.fetch = fetch
+    # call Python function
+    if py_fetch.callbacks.get(callback_name, None):
+        py_fetch.callbacks[callback_name](py_fetch)
+
+# one of {onsuccess,onerror} is guaranteed to run, deref Fetch there
 cdef void callpyfunc_fetch_onsuccess(emscripten_fetch_t *fetch):
-    callpyfunc_fetch_callback(fetch, "onsuccess")
-    fetch_pyfree(fetch)
+    callpyfunc_fetch_callback(fetch, 'onsuccess')
+    Py_XDECREF(<PyObject*>fetch.userData)
 cdef void callpyfunc_fetch_onerror(emscripten_fetch_t *fetch):
-    callpyfunc_fetch_callback(fetch, "onerror")
-    fetch_pyfree(fetch)
+    callpyfunc_fetch_callback(fetch, 'onerror')
+    Py_XDECREF(<PyObject*>fetch.userData)
 cdef void callpyfunc_fetch_onprogress(emscripten_fetch_t *fetch):
-    callpyfunc_fetch_callback(fetch, "onprogress")
+    callpyfunc_fetch_callback(fetch, 'onprogress')
 cdef void callpyfunc_fetch_onreadystatechange(emscripten_fetch_t *fetch):
-    callpyfunc_fetch_callback(fetch, "onreadystatechange")
-
-# Currently unsafe:
-# https://github.com/emscripten-core/emscripten/issues/8234
-#def fetch_close(fetch):
-    # TODO: wrap emscripten_fetch_t
-    #fetch_pyfree(*fetch)
-    #emscripten_fetch_close(fetch)
-    #PyMem_Free(fetch)
-    pass
-
-cdef fetch_pyfree(emscripten_fetch_t *fetch):
-    s = <callpyfunc_fetch_s*>(fetch.userData)
-    Py_XDECREF(s.py_fetch_attr)
-    PyMem_Free(fetch.userData)
-    fetch.userData = NULL
-    emscripten_fetch_close(fetch)
+    callpyfunc_fetch_callback(fetch, 'onreadystatechange')
 
 def fetch(py_fetch_attr, url):
+    # TODO: set as Fetch() constructor?
     # TODO: dict -> keyword args?
     VALID_ATTRS = (
         'requestMethod', 'userData',
@@ -286,21 +318,29 @@ def fetch(py_fetch_attr, url):
     cdef emscripten_fetch_attr_t attr
     emscripten_fetch_attr_init(&attr)
 
+    cdef Fetch py_fetch = Fetch.__new__(Fetch)
+    Py_XINCREF(<PyObject*>py_fetch)  # survive until callback
+    attr.userData = <PyObject*>py_fetch
+
     if py_fetch_attr.has_key('requestMethod'):
         strncpy(attr.requestMethod,
             py_fetch_attr['requestMethod'].encode('UTF-8'),
             sizeof(attr.requestMethod) - 1)
 
-    cdef callpyfunc_fetch_s* s = <callpyfunc_fetch_s*> PyMem_Malloc(sizeof(callpyfunc_fetch_s))
-    s.py_fetch_attr = <PyObject*>py_fetch_attr
-    Py_XINCREF(s.py_fetch_attr)
-    attr.userData = s
+    py_fetch.userData = py_fetch_attr.get('userData', None)
 
+    py_fetch.callbacks = {}
     attr.onsuccess = callpyfunc_fetch_onsuccess
     attr.onerror = callpyfunc_fetch_onerror
+    if py_fetch_attr.has_key('onsuccess'):
+        py_fetch.callbacks['onsuccess'] = py_fetch_attr['onsuccess']
+    if py_fetch_attr.has_key('onerror'):
+        py_fetch.callbacks['onerror'] = py_fetch_attr['onerror']
     if py_fetch_attr.has_key('onprogress'):
+        py_fetch.callbacks['onprogress'] = py_fetch_attr['onprogess']
         attr.onprogress = callpyfunc_fetch_onprogress
     if py_fetch_attr.has_key('onreadystatechange'):
+        py_fetch.callbacks['onreadystatechange'] = py_fetch_attr['onreadystatechange']
         attr.onreadystatechange = callpyfunc_fetch_onreadystatechange
 
     if py_fetch_attr.has_key('attributes'):
@@ -345,7 +385,8 @@ def fetch(py_fetch_attr, url):
         attr.requestData = py_fetch_attr['requestData']
 
     # Fetch
-    ret = emscripten_fetch(&attr, url.encode('UTF-8'))
+    cdef emscripten_fetch_t *fetch = emscripten_fetch(&attr, url.encode('UTF-8'))
+    py_fetch.fetch = fetch
 
     # Explicitely deref temporary Python strings.  Test for forgotten refs with e.g.:
     # print(attr.overriddenMimeType, attr.destinationPath, attr.userName, attr.password)
@@ -354,21 +395,27 @@ def fetch(py_fetch_attr, url):
     if py_fetch_attr.has_key('requestHeaders'):
         PyMem_Free(<void*>attr.requestHeaders)
 
-    # TODO: wrap ret so we can use fetch_*_response_headers()
-    #return ret
+    return py_fetch
 
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n");
 # #Module.cwrap('PyRun_SimpleString', 'number', ['string'])("def g(x):\n    global a; a=x")
-# emscripten.fetch({'onsuccess':lambda x:sys.stdout.write(repr(x)+"\n")}, '/')
+# emscripten.fetch({'onsuccess':f}, '/')
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
-# fetch_attr={'onsuccess':f; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # no output
-# TODO: ^^^ store onxxxxx in callpyfunc_fetch_s
+# fetch_attr={'onsuccess':f}; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # output
 # emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
+# emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, 'https://bank.confidential/')  # simulated 404
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
+# Note: fe.fetch.id changes (in-place) when first caching
 # emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AA\xffBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
-# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f,'userData':'userData','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello')
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
+# fe=emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); fe2=emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath'); print("fe=",fe); print("fe2=",fe2)
+# Note: fe2 can occur before fe1
+# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY}, '/hello')
+# open('/test.txt','wb').write(r)
+# open('/test.txt','wb').write(r.data)
 
 def syncfs():
     emscripten_run_script(r"""
