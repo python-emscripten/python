@@ -87,10 +87,10 @@ cdef extern from "emscripten/fetch.h":
     emscripten_fetch_t *emscripten_fetch(emscripten_fetch_attr_t *fetch_attr, const char *url)
     #EMSCRIPTEN_RESULT emscripten_fetch_wait(emscripten_fetch_t *fetch, double timeoutMSecs)
     EMSCRIPTEN_RESULT emscripten_fetch_close(emscripten_fetch_t *fetch)
-    #size_t emscripten_fetch_get_response_headers_length(emscripten_fetch_t *fetch)
-    #size_t emscripten_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst, size_t dstSizeBytes)
-    #char **emscripten_fetch_unpack_response_headers(const char *headersString)
-    #void emscripten_fetch_free_unpacked_response_headers(char **unpackedHeaders)
+    size_t emscripten_fetch_get_response_headers_length(emscripten_fetch_t *fetch)
+    size_t emscripten_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst, size_t dstSizeBytes)
+    char **emscripten_fetch_unpack_response_headers(const char *headersString)
+    void emscripten_fetch_free_unpacked_response_headers(char **unpackedHeaders)
 
 FETCH_LOAD_TO_MEMORY = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY
 FETCH_STREAM_DATA = EMSCRIPTEN_FETCH_STREAM_DATA
@@ -248,6 +248,48 @@ cdef class Fetch:
     def __repr__(self):
         return u'<Fetch: id={}, userData={}, url={}, data={}, dataOffset={}, totalBytes={}, readyState={}, status={}, statusText={}>'.format(repr(self.id), repr(self.userData), repr(self.url), repr(self.data), repr(self.dataOffset), repr(self.totalBytes), repr(self.readyState), repr(self.status), repr(self.statusText))
 
+    # For testing whether a copy occurred:
+    #def overwrite(self):
+    #    cdef char* overwrite = <char*>(self.fetch.data)
+    #    overwrite[0] = b'O'
+
+    def get_response_headers(self):
+        cdef char* buf = NULL
+        # Note: JS crash if applied on a persisted request from IDB cache
+        # https://github.com/emscripten-core/emscripten/issues/7026#issuecomment-545488132
+        cdef length = emscripten_fetch_get_response_headers_length(self.fetch)
+        if length > 0:
+            headersString = <char*>PyMem_Malloc(length)
+            emscripten_fetch_get_response_headers(self.fetch, headersString, length+1)
+            ret = headersString[:length]  # copy
+            PyMem_Free(headersString)
+            return ret
+        else:
+            return None
+
+    def get_unpacked_response_headers(self):
+        cdef char* headersString = NULL
+        cdef char** unpackedHeaders = NULL
+        # Note: JS crash if applied on a persisted request from IDB cache
+        cdef length = emscripten_fetch_get_response_headers_length(self.fetch)
+        if length > 0:
+            headersString = <char*>PyMem_Malloc(length)
+            emscripten_fetch_get_response_headers(self.fetch, headersString, length+1)
+            unpackedHeaders = emscripten_fetch_unpack_response_headers(headersString)
+            PyMem_Free(headersString)
+            d = {}
+            i = 0
+            while unpackedHeaders[i] != NULL:
+                k = unpackedHeaders[i]  # c_string_encoding
+                i += 1
+                v = unpackedHeaders[i]  # c_string_encoding
+                i += 1
+                d[k] = v
+            emscripten_fetch_free_unpacked_response_headers(unpackedHeaders)
+            return d
+        else:
+            return None
+
     @property
     def id(self):
         return self.fetch.id
@@ -337,7 +379,7 @@ def fetch(py_fetch_attr, url):
     if py_fetch_attr.has_key('onerror'):
         py_fetch.callbacks['onerror'] = py_fetch_attr['onerror']
     if py_fetch_attr.has_key('onprogress'):
-        py_fetch.callbacks['onprogress'] = py_fetch_attr['onprogess']
+        py_fetch.callbacks['onprogress'] = py_fetch_attr['onprogress']
         attr.onprogress = callpyfunc_fetch_onprogress
     if py_fetch_attr.has_key('onreadystatechange'):
         py_fetch.callbacks['onreadystatechange'] = py_fetch_attr['onreadystatechange']
@@ -400,6 +442,7 @@ def fetch(py_fetch_attr, url):
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n");
 # #Module.cwrap('PyRun_SimpleString', 'number', ['string'])("def g(x):\n    global a; a=x")
 # emscripten.fetch({'onsuccess':f}, '/')
+# emscripten.fetch({'onsuccess':f}, u'/helloé')
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
 # fetch_attr={'onsuccess':f}; emscripten.fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # output
 # emscripten.fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
@@ -413,9 +456,9 @@ def fetch(py_fetch_attr, url):
 # emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
 # fe=emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); fe2=emscripten.fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath'); print("fe=",fe); print("fe2=",fe2)
 # Note: fe2 can occur before fe1
-# emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY}, '/hello')
-# open('/test.txt','wb').write(r)
-# open('/test.txt','wb').write(r.data)
+# r=emscripten.fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY}, '/hello')
+# open('test.txt','wb').write(r); open('test.txt','rb').read()
+# open('test.txt','wb').write(r.data); open('test.txt','rb').read()
 
 def syncfs():
     emscripten_run_script(r"""
