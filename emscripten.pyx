@@ -119,6 +119,7 @@ from libc.string cimport strncpy
 
 # C callback - no memory management
 # Take a single Python object and calls it
+# Kept for documentation
 cdef void callpyfunc(void *py_function):
     # not necessary as we're using a no-threading Python
     #PyEval_InitThreads()
@@ -128,45 +129,44 @@ cdef void callpyfunc(void *py_function):
 
 
 # C callbacks - memory management
-cdef struct callpyfunc_arg_s:
+cdef struct pycaller:
     PyObject* py_function
-    PyObject* py_arg
+    PyObject* py_arg  # can be: set, None or NULL
+
+cdef pycaller* pycaller_create(PyObject* py_function, PyObject* py_arg):
+    cdef pycaller* c = <pycaller*> PyMem_Malloc(sizeof(pycaller))
+    c.py_function = py_function
+    c.py_arg = py_arg
+    Py_XINCREF(c.py_function)
+    if c.py_arg != NULL:
+        Py_XINCREF(c.py_arg)
+    return c
+
+cdef void pycaller_free(pycaller *c):
+    if c.py_arg != NULL:
+        Py_XDECREF(c.py_arg)
+    Py_XDECREF(c.py_function)
+    PyMem_Free(c)
 
 # Take a Python object and calls it ONCE on passed argument
 # C callback for e.g. emscripten_async_call
-cdef void callpyfunc_arg_once(void* p):
-    s = <callpyfunc_arg_s*>p
-    callpyfunc_arg_nofree(s)
-    freepyfunc(s)
+cdef void pycaller_callback_once(void* p):
+    pycaller_callback_recurring(p)
+    pycaller_free(<pycaller*>p)
 
 # Take a Python object and calls it on passed argument
 # C callback for e.g. emscripten_set_main_loop_arg
-cdef void callpyfunc_arg_nofree(void* p):
-    s = <callpyfunc_arg_s*>p
-    py_function = <object>(s.py_function)
-    if s.py_arg != NULL:
-        py_arg = <object>(s.py_arg)
+cdef void pycaller_callback_recurring(void* p):
+    cdef pycaller* c = <pycaller*>p
+    py_function = <object>(c.py_function)
+    if c.py_arg != NULL:
+        py_arg = <object>(c.py_arg)
         py_function(py_arg)
     else:
         py_function()
 
-cdef callpyfunc_arg_s* createpyfunc(PyObject* py_function, PyObject* py_arg):
-    cdef callpyfunc_arg_s* s = <callpyfunc_arg_s*> PyMem_Malloc(sizeof(callpyfunc_arg_s))
-    s.py_function = py_function
-    s.py_arg = py_arg
-    Py_XINCREF(s.py_function)
-    Py_XINCREF(s.py_arg)    
-    return s
 
-cdef void freepyfunc(callpyfunc_arg_s *p):
-    if p != NULL:
-        Py_XDECREF(p.py_function)
-        if p.py_arg != NULL:
-          Py_XDECREF(p.py_arg)
-        PyMem_Free(p)
-
-
-cdef callpyfunc_arg_s* main_loop
+cdef pycaller* main_loop
 
 def set_main_loop_arg(py_function, py_arg, fps, simulate_infinite_loop):
     set_main_loop_arg_c(<PyObject*>py_function, <PyObject*>py_arg,
@@ -181,27 +181,27 @@ cdef set_main_loop_arg_c(PyObject* py_function, PyObject* py_arg,
                          fps, simulate_infinite_loop):
     global main_loop
     if main_loop == NULL:
-        main_loop = createpyfunc(py_function, py_arg)
+        main_loop = pycaller_create(py_function, py_arg)
     else:
         pass  # invalid, let emscripten_set_main_loop_arg() abort
-    emscripten_set_main_loop_arg(callpyfunc_arg_nofree, <void*>main_loop,
+    emscripten_set_main_loop_arg(pycaller_callback_recurring, <void*>main_loop,
                                  fps, simulate_infinite_loop)
 
 def cancel_main_loop():
     global main_loop
     emscripten_cancel_main_loop()
-    freepyfunc(main_loop)
+    pycaller_free(main_loop)
     main_loop = NULL
 
 # import emscripten,sys
 # emscripten.set_main_loop(lambda: sys.stdout.write("main_loop\n"), 2, 0)
 # emscripten.cancel_main_loop()
-# emscripten.set_main_loop(lambda: sys.stdout.write("main_loop\n"), 2, 1)
+# emscripten.set_main_loop(lambda: sys.stdout.write("main_loop\n"), -1, 1)
 # emscripten.set_main_loop_arg(lambda a: sys.stdout.write(a), "main_loop_arg\n", 2, 0)
 
 def async_call(py_function, py_arg, millis):
-    cdef callpyfunc_arg_s* s = createpyfunc(<PyObject*>py_function, <PyObject*>py_arg)
-    emscripten_async_call(callpyfunc_arg_once, <void*>s, millis)
+    cdef pycaller* c = pycaller_create(<PyObject*>py_function, <PyObject*>py_arg)
+    emscripten_async_call(pycaller_callback_once, <void*>c, millis)
 
 # emscripten.async_call(lambda a: sys.stdout.write(a), "async_call_arg\n", 2000)
 
