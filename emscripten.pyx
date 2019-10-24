@@ -104,7 +104,6 @@ FETCH_WAITABLE = EMSCRIPTEN_FETCH_WAITABLE
 
 
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
-from libc.stdlib cimport malloc, free
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 # https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
 from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
@@ -203,7 +202,7 @@ def async_call(py_function, py_arg, millis):
     cdef pycaller* c = pycaller_create(<PyObject*>py_function, <PyObject*>py_arg)
     emscripten_async_call(pycaller_callback_once, <void*>c, millis)
 
-# emscripten.async_call(lambda a: sys.stdout.write(a), "async_call_arg\n", 2000)
+# emscripten.async_call(lambda a: sys.stdout.write(a), "async_call_arg\n", 1000)
 
 
 def exit_with_live_runtime():
@@ -234,38 +233,39 @@ def run_script_string(script):
 #def async_wget(url, file, onload, onerror):
 #    pass
 
-cdef struct callpyfunc_async_wget_s:
-    PyObject* onload
-    PyObject* onerror
-    PyObject* arg
-cdef void callpyfunc_async_wget_onload(void* p, void* buf, int size):
-    s = <callpyfunc_async_wget_s*>p
+cdef class pycaller_async_wget:
+    cdef onload
+    cdef onerror
+    cdef arg
+    def __cinit__(self, onload, onerror, arg):
+        self.onload = onload
+        self.onerror = onerror
+        self.arg = arg
+    #def __dealloc__(self):
+    #    print("dealloc")
+
+cdef void pycaller_callback_async_wget_onload(void* p, void* buf, int size):
+    c = <pycaller_async_wget>p
     # https://cython.readthedocs.io/en/latest/src/tutorial/strings.html#passing-byte-strings
-    py_buf = (<char*>buf)[:size]  # TODO: avoid copy?
-    (<object>(s.onload))(<object>(s.arg), py_buf)
-    Py_XDECREF(s.onload)
-    Py_XDECREF(s.onerror)
-    Py_XDECREF(s.arg)
-    free(s)
-    # 'buf' freed by emscripten
-cdef void callpyfunc_async_wget_onerror(void* p):
-    s = <callpyfunc_async_wget_s*>p
-    if <object>s.onerror is not None:
-        (<object>(s.onerror))(<object>(s.arg))
-    Py_XDECREF(s.onload)
-    Py_XDECREF(s.onerror)
-    Py_XDECREF(s.arg)
-    free(s)
+    py_buf = (<char*>buf)[:size]  # copy
+    c.onload(c.arg, py_buf)
+    Py_XDECREF(<PyObject*>p)
+    # 'buf' freed right after by emscripten
+
+cdef void pycaller_callback_async_wget_onerror(void* p):
+    c = <pycaller_async_wget>p
+    if c.onerror is not None:
+        c.onerror(c.arg)
+    Py_XDECREF(<PyObject*>p)
 
 def async_wget_data(url, arg, onload, onerror=None):
-    cdef callpyfunc_async_wget_s* s = <callpyfunc_async_wget_s*> malloc(sizeof(callpyfunc_async_wget_s))
-    s.onload = <PyObject*>onload
-    s.onerror = <PyObject*>onerror
-    s.arg = <PyObject*>arg
-    Py_XINCREF(s.onload)
-    Py_XINCREF(s.onerror)
-    Py_XINCREF(s.arg)
-    emscripten_async_wget_data(url.encode('UTF-8'), <void*>s, callpyfunc_async_wget_onload, callpyfunc_async_wget_onerror)
+    cdef pycaller_async_wget c = pycaller_async_wget(onload, onerror, arg)
+    cdef PyObject* p = <PyObject*>c
+    Py_XINCREF(p)  # survive until callback
+    emscripten_async_wget_data(url.encode('UTF-8'), p,
+                               pycaller_callback_async_wget_onload,
+                               pycaller_callback_async_wget_onerror)
+
 # emscripten.async_wget_data('/', {'a':1}, lambda arg,buf: sys.stdout.write(repr(arg)+"\n"+repr(buf)+"\n"), lambda arg: sys.stdout.write(repr(arg)+"\nd/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None, lambda arg: sys.stdout.write("d/l error\n"))
 # emscripten.async_wget_data('https://bank.confidential/', None, None)
