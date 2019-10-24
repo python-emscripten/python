@@ -218,17 +218,11 @@ cdef class Fetch:
     cdef emscripten_fetch_t *fetch
     cdef callbacks
 
-    def __cinit__(self, py_fetch_attr, url):
-        # TODO: dict -> keyword args?
-        VALID_ATTRS = (
-            'requestMethod', 'userData',
-            'onsuccess', 'onerror', 'onprogress', 'onreadystatechange',
-            'attributes', 'timeoutMSecs', 'withCredentials',
-            'destinationPath', 'userName', 'password',
-            'requestHeaders', 'overriddenMimeType', 'requestData')
-        for k in py_fetch_attr.keys():
-            if k not in VALID_ATTRS:
-                print('emscripten: fetch: invalid attribute ' + k)
+    def __cinit__(self, url, requestMethod=None, userData=None,
+            onsuccess=None, onerror=None, onprogress=None, onreadystatechange=None,
+            attributes=None, timeoutMSecs=None, withCredentials=None,
+            destinationPath=None, userName=None, password=None,
+            requestHeaders=None, overriddenMimeType=None, requestData=None):
     
         # Keep track of temporary Python strings we pass emscripten_fetch() for copy
         py_str_refs = []
@@ -239,49 +233,49 @@ cdef class Fetch:
         Py_XINCREF(<PyObject*>self)  # survive until callback
         attr.userData = <PyObject*>self
     
-        if py_fetch_attr.has_key('requestMethod'):
+        if requestMethod is not None:
             strncpy(attr.requestMethod,
-                py_fetch_attr['requestMethod'].encode('UTF-8'),
+                requestMethod.encode('UTF-8'),
                 sizeof(attr.requestMethod) - 1)
     
-        self.userData = py_fetch_attr.get('userData', None)
+        self.userData = userData
     
         self.callbacks = {}
         attr.onsuccess = callpyfunc_fetch_onsuccess
         attr.onerror = callpyfunc_fetch_onerror
-        if py_fetch_attr.has_key('onsuccess'):
-            self.callbacks['onsuccess'] = py_fetch_attr['onsuccess']
-        if py_fetch_attr.has_key('onerror'):
-            self.callbacks['onerror'] = py_fetch_attr['onerror']
-        if py_fetch_attr.has_key('onprogress'):
-            self.callbacks['onprogress'] = py_fetch_attr['onprogress']
+        if onsuccess is not None:
+            self.callbacks['onsuccess'] = onsuccess
+        if onerror is not None:
+            self.callbacks['onerror'] = onerror
+        if onprogress is not None:
+            self.callbacks['onprogress'] = onprogress
             attr.onprogress = callpyfunc_fetch_onprogress
-        if py_fetch_attr.has_key('onreadystatechange'):
-            self.callbacks['onreadystatechange'] = py_fetch_attr['onreadystatechange']
+        if onreadystatechange is not None:
+            self.callbacks['onreadystatechange'] = onreadystatechange
             attr.onreadystatechange = callpyfunc_fetch_onreadystatechange
     
-        if py_fetch_attr.has_key('attributes'):
-            attr.attributes = py_fetch_attr['attributes']
-        if py_fetch_attr.has_key('timeoutMSecs'):
-            attr.timeoutMSecs = py_fetch_attr['timeoutMSecs']
-        if py_fetch_attr.has_key('withCredentials'):
-            attr.withCredentials = py_fetch_attr['withCredentials']
-        if py_fetch_attr.has_key('destinationPath'):
-            py_str_refs.append(py_fetch_attr['destinationPath'].encode('UTF-8'))
+        if attributes is not None:
+            attr.attributes = attributes
+        if timeoutMSecs is not None:
+            attr.timeoutMSecs = timeoutMSecs
+        if withCredentials is not None:
+            attr.withCredentials = withCredentials
+        if destinationPath is not None:
+            py_str_refs.append(destinationPath.encode('UTF-8'))
             attr.destinationPath = py_str_refs[-1]
-        if py_fetch_attr.has_key('userName'):
-            py_str_refs.append(py_fetch_attr['userName'].encode('UTF-8'))
+        if userName is not None:
+            py_str_refs.append(userName.encode('UTF-8'))
             attr.userName = py_str_refs[-1]
-        if py_fetch_attr.has_key('password'):
-            py_str_refs.append(py_fetch_attr['password'].encode('UTF-8'))
+        if password is not None:
+            py_str_refs.append(password.encode('UTF-8'))
             attr.password = py_str_refs[-1]
     
         cdef char** headers
-        if py_fetch_attr.has_key('requestHeaders'):
-            size = (2 * len(py_fetch_attr['requestHeaders']) + 1) * sizeof(char*)
+        if requestHeaders is not None:
+            size = (2 * len(requestHeaders) + 1) * sizeof(char*)
             headers = <char**>PyMem_Malloc(size)
             i = 0
-            for name,value in py_fetch_attr['requestHeaders'].items():
+            for name,value in requestHeaders.items():
                 py_str_refs.append(name.encode('UTF-8'))
                 headers[i] = py_str_refs[-1]
                 i += 1
@@ -291,15 +285,15 @@ cdef class Fetch:
             headers[i] = NULL
             attr.requestHeaders = <const char* const *>headers
     
-        if py_fetch_attr.has_key('overriddenMimeType'):
-            py_str_refs.append(py_fetch_attr['overriddenMimeType'].encode('UTF-8'))
+        if overriddenMimeType is not None:
+            py_str_refs.append(overriddenMimeType.encode('UTF-8'))
             attr.overriddenMimeType = py_str_refs[-1]
     
-        if py_fetch_attr.has_key('requestData'):
-            size = len(py_fetch_attr['requestData'])
+        if requestData is not None:
+            size = len(requestData)
             attr.requestDataSize = size
             # direct pointer, no UTF-8 encoding pass:
-            attr.requestData = py_fetch_attr['requestData']
+            attr.requestData = requestData
     
         # Fetch
         cdef emscripten_fetch_t *fetch = emscripten_fetch(&attr, url.encode('UTF-8'))
@@ -309,7 +303,7 @@ cdef class Fetch:
         # print(attr.overriddenMimeType, attr.destinationPath, attr.userName, attr.password)
         del py_str_refs
     
-        if py_fetch_attr.has_key('requestHeaders'):
+        if requestHeaders is not None:
             PyMem_Free(<void*>attr.requestHeaders)
 
     def __dealloc__(self):
@@ -433,22 +427,22 @@ cdef void callpyfunc_fetch_onreadystatechange(emscripten_fetch_t *fetch):
 
 # import emscripten,sys; f=lambda x:sys.stdout.write(repr(x)+"\n");
 # #Module.cwrap('PyRun_SimpleString', 'number', ['string'])("def g(x):\n    global a; a=x")
-# emscripten.Fetch({'onsuccess':f}, '/')
-# emscripten.Fetch({'onsuccess':f}, u'/helloé')
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f}, '/hello'); del f  # output
-# fetch_attr={'onsuccess':f}; emscripten.Fetch(fetch_attr, '/hello'); del fetch_attr['onsuccess']  # output
-# emscripten.Fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, '/non-existent')
-# emscripten.Fetch({'onerror':lambda x:sys.stdout.write(repr(x)+"\n")}, 'https://bank.confidential/')  # simulated 404
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, 'onsuccess':f}, '/hello')
+# emscripten.Fetch('/', onsuccess=f)
+# emscripten.Fetch(u'/helloé', onsuccess=f)
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY, onsuccess=f); del f  # output
+# fetch_attr={'onsuccess':f}; emscripten.Fetch('/hello', **fetch_attr); del fetch_attr['onsuccess']  # output
+# emscripten.Fetch('/non-existent', onerror=lambda x:sys.stdout.write(repr(x)+"\n"))
+# emscripten.Fetch('https://bank.confidential/', onerror=lambda x:sys.stdout.write(repr(x)+"\n"))  # simulated 404
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, onsuccess=f)
 # Note: fe.fetch.id changes (in-place) when first caching
-# emscripten.Fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, '/hello')
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'POST','requestData':'AA\xffBB\x00CC','onsuccess':f,'onerror':f}, '/hello')
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'requestMethod':'12345678901234567890123456789012','onerror':f}, '/hello')
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY,'onsuccess':f,'userData':'userData','overriddenMimeType':'text/html','userName':'userName','password':'password','requestHeaders':{'Content-Type':'text/plain','Cache-Control':'no-store'}}, '/hello')
-# emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); emscripten.Fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath')
-# fe=emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE,'onsuccess':f,'destinationPath':'destinationPath'}, '/hello'); fe2=emscripten.Fetch({'requestMethod':'EM_IDB_DELETE', 'onsuccess':f}, 'destinationPath'); print("fe=",fe); print("fe2=",fe2)
+# emscripten.Fetch('/hello', requestMethod='EM_IDB_DELETE', onsuccess=f)
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY, requestMethod='POST', requestData='AA\xffBB\x00CC', onsuccess=f, onerror=f)
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY, requestMethod='12345678901234567890123456789012', onerror=f)
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY, onsuccess=f, userData='userData', overriddenMimeType='text/html', userName='userName', password='password', requestHeaders={'Content-Type':'text/plain','Cache-Control':'no-store'})
+# emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, onsuccess=f, destinationPath='destinationPath'); emscripten.Fetch('destinationPath', requestMethod='EM_IDB_DELETE', onsuccess=f)
+# fe=emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY|emscripten.FETCH_PERSIST_FILE, onsuccess=f, destinationPath='destinationPath'); fe2=emscripten.Fetch('destinationPath', requestMethod='EM_IDB_DELETE', onsuccess=f); print("fe=",fe); print("fe2=",fe2)
 # Note: fe2 can occur before fe1
-# r=emscripten.Fetch({'attributes':emscripten.FETCH_LOAD_TO_MEMORY}, '/hello')
+# r=emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY)
 # open('test.txt','wb').write(r); open('test.txt','rb').read()
 # open('test.txt','wb').write(r.data); open('test.txt','rb').read()
 
