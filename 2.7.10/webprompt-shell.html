@@ -6,7 +6,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Emscripten-Generated Code</title>
     <style>
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+      .emscripten { margin-left: auto; margin-right: auto; display: block; }
       textarea.emscripten { font-family: monospace; width: 80%; }
       input.emscripten { font-family: monospace; width: 80%; }
       div.emscripten { text-align: center; }
@@ -64,7 +64,14 @@
     
     <hr/>
     <textarea class="emscripten" id="output" rows="8" readonly="readonly"></textarea>
-    <input type="text" class="emscripten" id="input" name="text" value="{'hello':'world'}"></input>
+
+    <input type="text" class="emscripten" id="input" name="text" value="{'REPL':'press enter'}"></input>
+    <textarea class="emscripten" id="file" rows="8"># Python script
+def f(x):
+    return x**2
+print("hello, world!")
+</textarea>
+    <button class="emscripten" onclick="execute()">Execute</button>
     <hr>
 
     <script type='text/javascript'>
@@ -147,22 +154,31 @@
     <!-- Python webprompt -->
     <script type='text/javascript'>
       Module['printErr'] = Module['print'];
+      var ready = false;
 
       // Initialize Python if not already
       Module['onRuntimeInitialized'] = function() {
-        // Module.cwrap('Py_Initialize', 'number', [])();
+        // Module.cwrap('Py_Initialize', 'number', [])();  // done in webprompt-main.c
+        ready = true;
+      }
+
+      function execute() {
+        if (!ready) { Module.print('Python is loading, please wait...'); return; }
+        Module.print('>>> <textarea>');
+        source_code = document.getElementById('file').value;
+        Module.cwrap('PyRun_SimpleString', 'number', ['string'])(source_code);
+        // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [source_code]);
       }
 
       var hist = [''];
       var hist_index = 0;
       var input = document.getElementById('input');
       input.onkeydown = function(ev) {
+        if (!ready) { Module.print('Python is loading, please wait...'); return; }
         if (ev.key === 'Enter') {
           Module.print('>>> ' + input.value);
 
-          // Execute Python code
-          // Module.cwrap('PyRun_SimpleString', 'number', ['string'])(input.value);
-          // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [input.value]);
+          // Execute Python code with emulated stdin
           FS.writeFile('/tmp/input.py', input.value + '\n')
           Module.ccall('pyruni');
 
