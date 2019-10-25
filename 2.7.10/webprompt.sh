@@ -34,7 +34,7 @@ emcc -o $BUILD/index.html \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
   -s USE_ZLIB=1 \
   -s FETCH=1 \
-  -s TOTAL_MEMORY=256MB \
+  -s ALLOW_MEMORY_GROWTH=1 \
   -s FORCE_FILESYSTEM=1 \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
   -s EXPORTED_FUNCTIONS="['_main', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
