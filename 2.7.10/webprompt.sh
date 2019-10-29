@@ -18,7 +18,6 @@ BUILD=t
 mkdir -p $BUILD
 
 cython -2 ../emscripten.pyx -o $BUILD/emscripten.c
-emcc $BUILD/emscripten.c -o $BUILD/emscripten.bc -I $INSTALLDIR/include/python2.7
 # utf_32_be: support Unicode characters e.g. u'é'
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
     encodings/utf_32_be.py
@@ -35,7 +34,7 @@ emcc -o $BUILD/index.html \
   -s USE_ZLIB=1 \
   -s FETCH=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
-  -s FORCE_FILESYSTEM=1 \
+  -s FORCE_FILESYSTEM=1 -s RETAIN_COMPILER_SETTINGS=1 \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
   -s EXPORTED_FUNCTIONS="['_main', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'

@@ -33,6 +33,21 @@ cdef extern from "emscripten.h":
     #void emscripten_async_wget(const char* url, const char* file, em_str_callback_func onload, em_str_callback_func onerror)
     void emscripten_async_wget_data(const char* url, void *arg, em_async_wget_onload_func onload, em_arg_callback_func onerror)
 
+    enum:
+        EM_LOG_CONSOLE
+        EM_LOG_WARN
+        EM_LOG_ERROR
+        EM_LOG_C_STACK
+        EM_LOG_JS_STACK
+        EM_LOG_DEMANGLE
+        EM_LOG_NO_PATHS
+        EM_LOG_FUNC_PARAMS
+
+    int emscripten_get_compiler_setting(const char *name)
+    void emscripten_debugger()
+    #void emscripten_log(int flags, ...)
+    int emscripten_get_callstack(int flags, char *out, int maxbytes)
+
 cdef extern from "emscripten/html5.h":
     ctypedef int EM_BOOL
     ctypedef int EMSCRIPTEN_RESULT
@@ -101,6 +116,15 @@ FETCH_REPLACE = EMSCRIPTEN_FETCH_REPLACE
 FETCH_NO_DOWNLOAD = EMSCRIPTEN_FETCH_NO_DOWNLOAD
 FETCH_SYNCHRONOUS = EMSCRIPTEN_FETCH_SYNCHRONOUS
 FETCH_WAITABLE = EMSCRIPTEN_FETCH_WAITABLE
+
+LOG_CONSOLE = EM_LOG_CONSOLE
+LOG_WARN = EM_LOG_WARN
+LOG_ERROR = EM_LOG_ERROR
+LOG_C_STACK = EM_LOG_C_STACK
+LOG_JS_STACK = EM_LOG_JS_STACK
+LOG_DEMANGLE = EM_LOG_DEMANGLE
+LOG_NO_PATHS = EM_LOG_NO_PATHS
+LOG_FUNC_PARAMS = EM_LOG_FUNC_PARAMS
 
 
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
@@ -507,6 +531,50 @@ cdef void callpyfunc_fetch_onreadystatechange(emscripten_fetch_t *fetch):
 # r=emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY)
 # open('test.txt','wb').write(r); open('test.txt','rb').read()
 # open('test.txt','wb').write(r.data); open('test.txt','rb').read()
+
+# requires -s RETAIN_COMPILER_SETTINGS=1 (otherwise Exception)
+def get_compiler_setting(name):
+    cdef void* amb = <void*>emscripten_get_compiler_setting(name.encode('UTF-8'))
+    # can be int or char*, use heuristic
+    # otherwise we could whitelist all known string parameters, if that's possible
+    if <int>amb < 1000:
+        return <int>amb
+    else:
+        return <char*>amb  # c_string_encoding
+# emscripten.get_compiler_setting('EMULATE_FUNCTION_POINTER_CASTS')
+#   1
+# emscripten.get_compiler_setting('OPT_LEVEL')
+#   3
+# emscripten.get_compiler_setting('EMSCRIPTEN_VERSION')
+#   u'1.39.0'
+# emscripten.get_compiler_setting('non-existent')
+#   u'invalid compiler setting: non-existent'
+# emscripten.get_compiler_setting('EXPORTED_FUNCTIONS')
+#   u'invalid compiler setting: EXPORTED_FUNCTIONS'  # :(
+
+def debugger():
+    emscripten_debugger()
+# open the JavaScript console
+# emscripten.debugger()
+
+# No variadic function support in Cython?
+# No va_arg variant for emscripten_log either.
+#def log(flags, *args):
+#    emscripten_log(flags, *args)
+
+def get_callstack(flags):
+    cdef int size = emscripten_get_callstack(flags, NULL, 0)
+    # "subsequent calls will carry different line numbers, so it is
+    # best to allocate a few bytes extra to be safe"
+    size += 1024
+    cdef char* buf = <char*>PyMem_Malloc(size)
+    emscripten_get_callstack(flags, buf, size)
+    cdef object ret = buf  # c_string_encoding
+    PyMem_Free(buf)
+    return ret
+# from emscripten import *
+# print(get_callstack(0))
+# print(get_callstack(LOG_C_STACK|LOG_JS_STACK|LOG_DEMANGLE|LOG_NO_PATHS|LOG_FUNC_PARAMS))
 
 
 # Non-API utility
