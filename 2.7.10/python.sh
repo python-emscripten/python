@@ -46,6 +46,9 @@ native () {
     
         make -j$(nproc)
         DESTDIR= make install
+
+	# Avoid '-fPIC' in _sysconfigdata.build_time_vars['CCSHARED'], this is for compiling static modules
+	sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
     )
 }
 
