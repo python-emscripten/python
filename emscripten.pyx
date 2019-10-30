@@ -189,7 +189,7 @@ cdef void pycaller_callback_recurring(void* p):
         py_function()
 
 
-cdef pycaller* main_loop
+cdef pycaller* main_loop = NULL
 
 def set_main_loop_arg(py_function, py_arg, fps, simulate_infinite_loop):
     set_main_loop_arg_c(<PyObject*>py_function, <PyObject*>py_arg,
@@ -213,7 +213,8 @@ cdef set_main_loop_arg_c(PyObject* py_function, PyObject* py_arg,
 def cancel_main_loop():
     global main_loop
     emscripten_cancel_main_loop()
-    pycaller_free(main_loop)
+    if main_loop != NULL:
+       pycaller_free(main_loop)
     main_loop = NULL
 
 # import emscripten,sys
