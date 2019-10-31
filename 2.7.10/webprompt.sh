@@ -38,6 +38,7 @@ emcc -o $BUILD/index.html \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
   -s EXPORTED_FUNCTIONS="['_main', '_Py_Initialize', '_PyRun_SimpleString', '_pyruni']" \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='["ccall", "cwrap"]'
+# -s ASYNCIFY=1
 
 # cython ../mock/emscripten.pyx -o t/mock.c
 # gcc -g -I build/hostpython/include/python2.7 -L build/hostpython/lib/ t/mock.c webprompt-main.c -lpython2.7 -ldl -lm -lutil -lz

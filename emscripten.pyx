@@ -24,14 +24,19 @@ cdef extern from "emscripten.h":
     void emscripten_set_main_loop_arg(em_arg_callback_func func, void *arg, int fps, int simulate_infinite_loop)
     void emscripten_cancel_main_loop()
     void emscripten_exit_with_live_runtime()
-    void emscripten_sleep(unsigned int ms)
-    void emscripten_sleep_with_yield(unsigned int ms)
+
     void emscripten_run_script(const char *script)
     int emscripten_run_script_int(const char *script)
     char *emscripten_run_script_string(const char *script)
-    void emscripten_async_call(em_arg_callback_func func, void *arg, int millis)
+
     #void emscripten_async_wget(const char* url, const char* file, em_str_callback_func onload, em_str_callback_func onerror)
     void emscripten_async_wget_data(const char* url, void *arg, em_async_wget_onload_func onload, em_arg_callback_func onerror)
+    void emscripten_async_call(em_arg_callback_func func, void *arg, int millis)
+
+    void emscripten_sleep(unsigned int ms)
+    void emscripten_sleep_with_yield(unsigned int ms)
+    void emscripten_wget(const char* url, const char* file)
+    void emscripten_wget_data(const char* url, void** pbuffer, int* pnum, int *perror)
 
     enum:
         EM_LOG_CONSOLE
@@ -128,6 +133,7 @@ LOG_FUNC_PARAMS = EM_LOG_FUNC_PARAMS
 
 
 # https://cython.readthedocs.io/en/latest/src/tutorial/memory_allocation.html
+from libc.stdlib cimport malloc, free
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 # https://github.com/cython/cython/wiki/FAQ#what-is-the-difference-between-pyobject-and-object
 from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
@@ -407,8 +413,8 @@ cdef class Fetch:
     # https://docs.python.org/3/c-api/buffer.html#c.PyBuffer_FillInfo
     def __getbuffer__(self, Py_buffer *view, int flags):
         if self.fetch.data != NULL:
-            readonly = 1
-            PyBuffer_FillInfo(view, self, <void*>self.fetch.data, self.fetch.numBytes, readonly, flags)
+            is_readonly = 1
+            PyBuffer_FillInfo(view, self, <void*>self.fetch.data, self.fetch.numBytes, is_readonly, flags)
         else:
             view.obj = None
             raise BufferError
@@ -602,6 +608,48 @@ def get_callstack(flags):
 # from emscripten import *
 # print(get_callstack(0))
 # print(get_callstack(LOG_C_STACK|LOG_JS_STACK|LOG_DEMANGLE|LOG_NO_PATHS|LOG_FUNC_PARAMS))
+
+
+# Pseudo-synchronous, requires ASYNCIFY
+def wget(url, file):
+    return emscripten_wget(url.encode('UTF-8'), file.encode('UTF-8'))
+# emscripten.wget('/hello', '/hello'); open('/hell','rb').read()
+# Notes:
+# - FS error if file already exists
+# - Download indicator showing up not going away
+# - Download progress bar showing up not going away on error
+
+# Wrap a malloc'd buffer with buffer interface and automatic free()
+cdef class MallocBuffer:
+    cdef char *buf
+    cdef int size
+    def __init__(self):
+        raise Exception("MallocBuffer: constructor not available from Python")
+    # constructor from non-Python parameters (__cinit__ don't accept them)
+    @staticmethod
+    cdef MallocBuffer from_string_and_size(char* buf, int size):
+        cdef MallocBuffer ret = MallocBuffer.__new__(MallocBuffer)
+        ret.buf = buf
+        ret.size = size
+        return ret
+    def __dealloc__(self):
+        free(self.buf)
+    def __getbuffer__(self, Py_buffer *view, int flags):
+        is_readonly = 0
+        PyBuffer_FillInfo(view, self, <void*>self.buf, self.size, is_readonly, flags)
+    def __releasebuffer__(self, Py_buffer *view):
+        pass
+
+# Pseudo-synchronous, requires ASYNCIFY
+def wget_data(url):
+    cdef char* buf
+    cdef int num, error
+    emscripten_wget_data(url.encode('UTF-8'), <void**>&buf, &num, &error)
+    if error != 0:
+        return None
+    pybuf = MallocBuffer.from_string_and_size(buf, num)
+    return pybuf
+# import emscripten,cStringIO; r = emscripten.wget_data('/hello'); cStringIO.StringIO(r).read(); memoryview(r).tobytes()
 
 
 # Non-API utility
