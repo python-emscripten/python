@@ -41,7 +41,7 @@ emcc -o $BUILD/index.html \
   -s FORCE_FILESYSTEM=1 -s RETAIN_COMPILER_SETTINGS=1 \
   $ASYNC \
   --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
-  -s EXPORTED_FUNCTIONS='[_main, _Py_Initialize, _PyRun_SimpleString, _pyruni, _emscripten_debugger]' \
+  -s EXPORTED_FUNCTIONS='[_main, _Py_Initialize, _PyRun_SimpleString, _pyruni]' \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='[ccall, cwrap]'
 
 # cython ../mock/emscripten.pyx -o t/mock.c
