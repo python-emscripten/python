@@ -481,6 +481,9 @@ cdef class Fetch:
         else:
             return None
     @property
+    def numBytes(self):
+        return self.fetch.numBytes
+    @property
     def dataOffset(self):
         return self.fetch.dataOffset
     @property
