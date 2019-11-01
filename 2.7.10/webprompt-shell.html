@@ -166,8 +166,11 @@ print("hello, world!")
         if (!ready) { Module.print('Python is loading, please wait...'); return; }
         Module.print('>>> <textarea>');
         source_code = document.getElementById('file').value;
-        Module.cwrap('PyRun_SimpleString', 'number', ['string'])(source_code);
-        // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [source_code]);
+        var opts = {}
+        if (typeof Asyncify === 'object')
+            opts = { async: true };
+        Module.cwrap('PyRun_SimpleString', 'number', ['string'], opts)(source_code);
+        // or: Module.ccall('PyRun_SimpleString', 'number', ['string'], [source_code], opts);
       }
 
       var hist = [''];
@@ -179,8 +182,11 @@ print("hello, world!")
           Module.print('>>> ' + input.value);
 
           // Execute Python code with emulated stdin
-          FS.writeFile('/tmp/input.py', input.value + '\n')
-          Module.ccall('pyruni');
+          FS.writeFile('/tmp/input.py', input.value + '\n');
+          var opts = {}
+          if (typeof Asyncify === 'object')
+              opts = { async: true };
+          Module.ccall('pyruni', 'undefined', [], [], opts);
 
           hist[hist.length-1] = input.value;
           hist.push('');
