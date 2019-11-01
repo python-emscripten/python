@@ -139,6 +139,7 @@ from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.ref cimport PyObject, Py_XINCREF, Py_XDECREF
 
 from cpython.buffer cimport PyBuffer_FillInfo
+import cStringIO
 
 from libc.string cimport strncpy
 
@@ -477,7 +478,7 @@ cdef class Fetch:
     @property
     def data(self):
         if self.fetch.data != NULL:
-            return memoryview(self)
+            return cStringIO.StringIO(self)
         else:
             return None
     @property
@@ -537,7 +538,7 @@ cdef void callpyfunc_fetch_onreadystatechange(emscripten_fetch_t *fetch):
 # Note: fe2 can occur before fe1
 # r=emscripten.Fetch('/hello', attributes=emscripten.FETCH_LOAD_TO_MEMORY)
 # open('test.txt','wb').write(r); open('test.txt','rb').read()
-# open('test.txt','wb').write(r.data); open('test.txt','rb').read()
+# r.data.read()
 
 # requires -s RETAIN_COMPILER_SETTINGS=1 (otherwise Exception)
 def get_compiler_setting(name):
