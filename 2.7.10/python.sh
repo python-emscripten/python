@@ -28,6 +28,12 @@ unpack () {
     quilt push -a
 }
 
+# TODO: multiple partially supported use cases:
+# - emscripten() below
+# - mock-ing emscripten (but with signal module)
+# - building static/dynamic wasm modules (but lacks setuptools and its
+#   threads dependency)
+# Make several builds?
 native () {
     cd $BUILD/Python-2.7.10/
     mkdir -p native
@@ -47,8 +53,9 @@ native () {
         make -j$(nproc)
         DESTDIR= make install
 
-	# Avoid '-fPIC' in _sysconfigdata.build_time_vars['CCSHARED'], this is for compiling static modules
-	sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
+	# emcc should disregard '-fPIC' during non-SIDE_MODULE builds,
+	# otherwise _sysconfigdata.build_time_vars['CCSHARED'] is the culprit:
+	# sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
     )
 }
 
