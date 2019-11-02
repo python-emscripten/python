@@ -31,7 +31,7 @@ while (( $# )); do
     shift
 done
 emcc -o $BUILD/index.html \
-  webprompt-main.c $BUILD/emscripten.c \
+  ../webprompt-main.c $BUILD/emscripten.c \
   $FLAGS \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \
@@ -40,7 +40,7 @@ emcc -o $BUILD/index.html \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s FORCE_FILESYSTEM=1 -s RETAIN_COMPILER_SETTINGS=1 \
   $ASYNC \
-  --shell-file webprompt-shell.html -s MINIFY_HTML=0 \
+  --shell-file ../webprompt-shell.html -s MINIFY_HTML=0 \
   -s EXPORTED_FUNCTIONS='[_main, _Py_Initialize, _PyRun_SimpleString, _pyruni]' \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='[ccall, cwrap]'
 
