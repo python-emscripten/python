@@ -9,6 +9,7 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
+VERSION=2.7.10  # for end-of-life Python2, support Ren'Py's version only
 DESTDIR=${DESTDIR:-$(dirname $(readlink -f $0))/destdir}
 SETUPLOCAL=${SETUPLOCAL:-'/dev/null'}
 
@@ -19,23 +20,23 @@ export QUILT_PATCHES=$(dirname $(readlink -f $0))/patches
 WGET=${WGET:-wget}
 
 unpack () {
-    $WGET -c https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz -P $CACHEROOT/
+    $WGET -c https://www.python.org/ftp/python/$VERSION/Python-$VERSION.tgz -P $CACHEROOT/
     mkdir -p $BUILD
     cd $BUILD/
-    rm -rf Python-2.7.10/
-    tar xf $CACHEROOT/Python-2.7.10.tgz
-    cd Python-2.7.10/
+    rm -rf Python-$VERSION/
+    tar xf $CACHEROOT/Python-$VERSION.tgz
+    cd Python-$VERSION/
     quilt push -a
 }
 
 # TODO: multiple partially supported use cases:
-# - emscripten() below
-# - mock-ing emscripten (but with signal module)
+# - python and pgen for emscripten() below
+# - mock-ing emscripten environment through static desktop python (but with signal module)
 # - building static/dynamic wasm modules (but lacks setuptools and its
 #   threads dependency)
 # Make several builds?
 native () {
-    cd $BUILD/Python-2.7.10/
+    cd $BUILD/Python-$VERSION/
     mkdir -p native
     (
         cd native/
@@ -48,27 +49,31 @@ native () {
         echo '*static*' > Modules/Setup.local
         cat $SETUPLOCAL >> Modules/Setup.local
 
+	# used by a Python script in 'make install' - or not
+	#echo '_struct _struct.c' >> Modules/Setup.local
+	#echo 'unicodedata unicodedata.c' >> Modules/Setup.local
+
         make -j$(nproc) Parser/pgen python
     
         make -j$(nproc)
         DESTDIR= make install
 
-	# emcc should disregard '-fPIC' during non-SIDE_MODULE builds,
-	# otherwise _sysconfigdata.build_time_vars['CCSHARED'] is the culprit:
-	# sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
+        # emcc should disregard '-fPIC' during non-SIDE_MODULE builds,
+        # otherwise _sysconfigdata.build_time_vars['CCSHARED'] is the culprit:
+        # sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
     )
 }
 
 emscripten () {
-    cd $BUILD/Python-2.7.10/
+    cd $BUILD/Python-$VERSION/
     mkdir -p emscripten
     (
         cd emscripten/
         # OPT=-Oz: TODO
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
         # not needed as emcc has a single arch: BASECFLAGS=-m32 LDFLAGS=-m32
-        # --without-threads: pthreads currently not yet usable in emscripten as of 2018-12
-        #   cf. https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
+        # --without-threads: pthreads experimental as of 2019-11
+        #   cf. https://emscripten.org/docs/porting/pthreads.html
 
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' \
@@ -79,22 +84,26 @@ emscripten () {
                 --disable-shared
         fi
         sed -i -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
-	# Work-around network functions detection
-	# https://github.com/emscripten-core/emscripten/issues/9154
-	sed -i -e 's,^/\* #undef HAVE_GETPEERNAME \*/,#define HAVE_GETPEERNAME 1,' pyconfig.h
-	sed -i -e 's,^/\* #undef HAVE_GETNAMEINFO \*/,#define HAVE_GETNAMEINFO 1,' pyconfig.h
-        # Modules/Setup.local
-        emmake make Parser/pgen  # need to build it once before overwriting it with the native one
+
+        # pgen native setup
+        # note: need to build 'pgen' once before overwriting it with the native one
+        # note: PGEN=../native/Parser/pgen doesn't work, make overwrites it
+        emmake make Parser/pgen
         \cp --preserve=mode ../native/Parser/pgen Parser/
-        # note: PGEN=../native/Parser/pgen doesn't work, make just overwrites it
-        # note: PYTHON_FOR_BUILD=../native/python, PATH=... doesn't work, it breaks emcc's Python
+        # python native setup
+        # note: PATH=... doesn't work, it breaks emcc's /usr/bin/env python
+        # note: PYTHON_FOR_BUILD=../native/python neither, it's a more complex call
+        #emmake env PATH=../../hostpython/bin:$PATH make -j$(nproc)
         sed -i -e 's,\(PYTHON_FOR_BUILD=.*\) python2.7,\1 $(abs_srcdir)/native/python,' Makefile
+
+        # Modules/Setup.local
         echo '*static*' > Modules/Setup.local
         cat $SETUPLOCAL >> Modules/Setup.local
-        # drop -lz, we USE_ZLIB=1:
+        # drop -I/-L/-lz, we USE_ZLIB=1 (keep it in SETUPLOCAL for mock)
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
     
         emmake make -j$(nproc)
+
         # setup.py install_lib doesn't respect DESTDIR
         echo -e 'sharedinstall:\n\ttrue' >> Makefile
         # decrease .pyo size by dropping docstrings
