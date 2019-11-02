@@ -31,9 +31,10 @@ unpack () {
 
 # TODO: multiple partially supported use cases:
 # - python and pgen for emscripten() below
-# - mock-ing emscripten environment through static desktop python (but with signal module)
+# - compiling .pyo files, in emscripten() and package-xxx.sh
 # - building static/dynamic wasm modules (but lacks setuptools and its
 #   threads dependency)
+# - mock-ing emscripten environment through static desktop python (but with signal module)
 # Make several builds?
 native () {
     cd $BUILD/Python-$VERSION/
