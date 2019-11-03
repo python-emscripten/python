@@ -10,11 +10,12 @@
 # without any warranty.
 
 VERSION=2.7.10  # for end-of-life Python2, support Ren'Py's version only
-DESTDIR=${DESTDIR:-$(dirname $(readlink -f $0))/destdir}
+SCRIPTDIR=$(dirname $(readlink -f $0))
+DESTDIR=${DESTDIR:-$SCRIPTDIR/destdir}
 SETUPLOCAL=${SETUPLOCAL:-'/dev/null'}
 
-CACHEROOT=$(dirname $(readlink -f $0))
-BUILD=$(dirname $(readlink -f $0))/build
+CACHEROOT=$SCRIPTDIR
+BUILD=$SCRIPTDIR/build
 export QUILT_PATCHES=$(dirname $(readlink -f $0))/patches
 
 WGET=${WGET:-wget}
@@ -155,8 +156,10 @@ mock () {
 # .../crosspython-static/bin/python  setup.py xxx --root=.../destdir/ --prefix=''
 # .../crosspython-dynamic/bin/python setup.py xxx --root=.../destdir/ --prefix=''
 # .../crosspython-static/bin/python -OO -m py_compile xxx.py
+# Note: maybe create and patch two virtualenv instead?  but harder to
+#   use with dual static/dynamic Makefile; doesn't handle root=destdir
 crosspython () {
-    cd $(dirname $(readlink -f $0))
+    cd $SCRIPTDIR
     # Copy-link hostpython except for include/ and
     # lib/python2.7/_sysconfigdata.py
     for variant in static dynamic; do
