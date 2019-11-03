@@ -29,40 +29,36 @@ unpack () {
     quilt push -a
 }
 
-# TODO: multiple partially supported use cases:
-# - python and pgen for emscripten() below
-# - compiling .pyo files, in emscripten() and package-xxx.sh
-# - building static/dynamic wasm modules (but lacks setuptools and its
-#   threads dependency)
-# - mock-ing emscripten environment through static desktop python (but with signal module)
-# Make several builds?
-native () {
+# use cases:
+# - python/pgen/.pyo for emscripten() below
+# - common basis for crosspython below
+hostpython () {
     cd $BUILD/Python-$VERSION/
     mkdir -p native
     (
         cd native/
-        # --without-signal-module: not disabled because needed by setup.py
         if [ ! -e config.status ]; then
+	    # --without-pymalloc: prevents segfault during 'make' (sysconfigdata)
             ../configure \
-                --prefix=$BUILD/hostpython/ \
-                --without-threads --without-pymalloc --disable-shared --disable-ipv6
+                --prefix='' \
+                --without-pymalloc
         fi
-        echo '*static*' > Modules/Setup.local
-        cat $SETUPLOCAL >> Modules/Setup.local
 
-	# used by a Python script in 'make install' - or not
-	#echo '_struct _struct.c' >> Modules/Setup.local
-	#echo 'unicodedata unicodedata.c' >> Modules/Setup.local
-
-        make -j$(nproc) Parser/pgen python
-    
         make -j$(nproc)
-        DESTDIR= make install
+        make install DESTDIR=$BUILD/hostpython
 
         # emcc should disregard '-fPIC' during non-SIDE_MODULE builds,
         # otherwise _sysconfigdata.build_time_vars['CCSHARED'] is the culprit:
         # sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
     )
+
+    # setuptools for 3rd-party module installers
+    wget -c https://files.pythonhosted.org/packages/11/0a/7f13ef5cd932a107cd4c0f3ebc9d831d9b78e1a0e8c98a098ca17b1d7d97/setuptools-41.6.0.zip -P $CACHEROOT/
+    cd $BUILD/hostpython/
+    rm -rf setuptools-41.6.0/
+    unzip $CACHEROOT/setuptools-41.6.0.zip
+    cd setuptools-41.6.0/
+    ../bin/python setup.py install
 }
 
 emscripten () {
@@ -129,14 +125,81 @@ emscripten () {
     )
 }
 
+# For mock-ing emscripten environment through static desktop python
+mock () {
+    cd $BUILD/Python-$VERSION/
+    mkdir -p native
+    (
+        cd native/
+        if [ ! -e config.status ]; then
+            ../configure \
+                --prefix=$BUILD/hostpython/ \
+                --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
+                --disable-shared
+        fi
+        echo '*static*' > Modules/Setup.local
+        cat $SETUPLOCAL >> Modules/Setup.local
+
+        make -j$(nproc) Parser/pgen python
+    
+        make -j$(nproc)
+        DESTDIR= make install
+    )
+}
+
+# python aimed at compiling third-party Python modules to WASM
+# - building static/dynamic wasm modules
+# - compiling .pyo files, in emscripten() and package-xxx.sh
+# Uses hostpython; detects its PYTHONHOME through ../lib AFAICS, no need to recompile
+# Usage:
+# .../crosspython-static/bin/python  setup.py xxx --root=.../destdir/ --prefix=''
+# .../crosspython-dynamic/bin/python setup.py xxx --root=.../destdir/ --prefix=''
+# .../crosspython-static/bin/python -OO -m py_compile xxx.py
+crosspython () {
+    cd $(dirname $(readlink -f $0))
+    # Copy-link hostpython except for include/ and
+    # lib/python2.7/_sysconfigdata.py
+    for variant in static dynamic; do
+	rm -rf crosspython-$variant
+	mkdir crosspython-$variant
+	(
+	    cd crosspython-$variant
+	    for i in $(cd ../build/hostpython && ls -A); do
+		ln -s ../build/hostpython/$i $i
+	    done
+	    rm include lib
+	    mkdir lib
+	    for i in $(cd ../build/hostpython/lib && ls -A); do
+		ln -s ../../build/hostpython/lib/$i lib/$i
+	    done
+	    rm lib/python2.7
+	    mkdir lib/python2.7
+	    for i in $(cd ../build/hostpython/lib/python2.7 && ls -A); do
+		ln -s ../../../build/hostpython/lib/python2.7/$i lib/python2.7/$i
+	    done
+	    
+	    # Use Python.h configured for WASM
+	    ln -s $DESTDIR/include include
+	    
+	    # Use compiler settings configured for WASM
+	    rm lib/python2.7/_sysconfigdata.*
+	    cp -a $DESTDIR/lib/python2.7/_sysconfigdata.* lib/python2.7/
+	)
+    done
+    # 'CCSHARED': 'xxx',
+    sed -i -e "s/'CCSHARED': .*/'CCSHARED': '-fPIC -s SIDE_MODULE=1',/" \
+	crosspython-dynamic/lib/python2.7/_sysconfigdata.py
+}
+
 case "$1" in
-    unpack|native|emscripten)
+    unpack|hostpython|emscripten|mock|crosspython)
         "$1"
         ;;
     '')
         unpack
-        native
+        hostpython
         emscripten
+        crosspython
         ;;
     *)
         echo "Usage: $0 unpack|native|emscripten"
