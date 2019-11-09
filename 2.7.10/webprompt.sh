@@ -18,6 +18,7 @@ BUILD=t
 mkdir -p $BUILD
 
 cython -2 ../emscripten.pyx -o $BUILD/emscripten.c
+cython -2 ../emscripten_fetch.pyx -o $BUILD/emscripten_fetch.c
 # utf_32_be: support Unicode characters e.g. u'é'
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
     encodings/utf_32_be.py
@@ -31,7 +32,7 @@ while (( $# )); do
     shift
 done
 emcc -o $BUILD/index.html \
-  ../webprompt-main.c $BUILD/emscripten.c \
+  ../webprompt-main.c $BUILD/emscripten.c $BUILD/emscripten_fetch.c \
   $FLAGS \
   -I$INSTALLDIR/include/python2.7 -L$INSTALLDIR/lib -lpython2.7 \
   -s EMULATE_FUNCTION_POINTER_CASTS=1 \

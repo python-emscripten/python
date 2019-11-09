@@ -14,6 +14,7 @@
 #endif
 #include <Python.h>
 PyMODINIT_FUNC initemscripten(void);
+PyMODINIT_FUNC initemscripten_fetch(void);
 
 // Run a line *and* display the result
 // PyRun_StringFlags only returns a non-None object with Py_eval_input (no 'print' support)
@@ -28,7 +29,11 @@ int main(int argc, char**argv) {
   Py_FrozenFlag   = 1; // drop <exec_prefix> warnings
   Py_VerboseFlag  = 1; // trace modules loading
   Py_InitializeEx(0);  // 0 = get rid of 'Calling stub instead of sigaction()'
-  static struct _inittab builtins[] = { {"emscripten", initemscripten}, };
+  static struct _inittab builtins[] = {
+    { "emscripten", initemscripten },
+    { "emscripten_fetch", initemscripten_fetch },
+    {NULL, NULL}
+  };
   PyImport_ExtendInittab(builtins);
 #ifdef __EMSCRIPTEN__
   emscripten_exit_with_live_runtime();
