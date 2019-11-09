@@ -1,4 +1,8 @@
 */build/
-*/destdir/
+*/crosspython-static/
+*/crosspython-dynamic/
+*/destdir
 */package/
 */Python-*.tgz
+*/setuptools-*.zip
+*/t/
