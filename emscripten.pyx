@@ -308,7 +308,7 @@ def get_callstack(flags):
 # Pseudo-synchronous, requires ASYNCIFY
 def wget(url, file):
     return emscripten_wget(url.encode('UTF-8'), file.encode('UTF-8'))
-# emscripten.wget('/hello', '/hello'); open('/hell','rb').read()
+# emscripten.wget('/hello', '/hello'); open('/hello','rb').read()
 # Notes:
 # - FS error if file already exists
 # - Download indicator showing up not going away
