@@ -52,7 +52,7 @@ cdef extern from "emscripten.h":
 
     int emscripten_get_compiler_setting(const char *name)
     void emscripten_debugger()
-    void emscripten_log(int flags, ...)
+    void emscripten_log(int flags, const char* format, ...)
     int emscripten_get_callstack(int flags, char *out, int maxbytes)
 
 LOG_CONSOLE = EM_LOG_CONSOLE
@@ -259,28 +259,27 @@ def debugger():
 # open the JavaScript console
 # emscripten.debugger()
 
-def log(flags, *args):
+def log(flags, fmt, *args):
     # No variadic function support in Cython?
     # No va_arg variant for emscripten_log either.
     # Let's offer limited support
-    cdef char* format
     cdef char* cstr
+    cdef char* cformat
+    pystrfmt = fmt.encode('UTF-8')
+    cformat = pystrfmt
     if len(args) == 0:
-        emscripten_log(flags)
+        emscripten_log(flags, cformat)
     elif len(args) > 0:
-        format = args[0]
         if len(args) == 1:
-            emscripten_log(flags, format)
-        elif len(args) == 2:
-            arg = args[1]
+            arg = args[0]
             if type(arg) == int:
-                emscripten_log(flags, format, <int>arg)
+                emscripten_log(flags, cformat, <int>arg)
             elif type(arg) == float:
-                emscripten_log(flags, format, <float>arg)
+                emscripten_log(flags, cformat, <float>arg)
             elif type(arg) in (str, unicode):
                 pystr = arg.encode('UTF-8')
                 cstr = pystr
-                emscripten_log(flags, format, cstr)
+                emscripten_log(flags, cformat, cstr)
             else:
                 pystr = ("emscripten.log: unsupported argument " + str(type(arg))).encode('UTF-8')
                 cstr = pystr
@@ -289,6 +288,9 @@ def log(flags, *args):
             emscripten_log(flags, "emscripten.log: only up to 2 arguments are supported")
 # import emscripten; emscripten.log(0, "hello %02d", 1)
 # import emscripten; emscripten.log(emscripten.LOG_WARN|emscripten.LOG_CONSOLE|emscripten.LOG_C_STACK, "warning!")
+# emscripten_log doesn't to properly support UTF-8
+# import emscripten; emscripten.log(0, u"é")
+# import emscripten; emscripten.log(0, "%s", u"é")
 
 def get_callstack(flags):
     cdef int size = emscripten_get_callstack(flags, NULL, 0)
