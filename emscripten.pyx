@@ -358,5 +358,5 @@ def syncfs():
                 console.trace(); console.log(err, err.message);
                 Module.print("Warning: write error: " + err.message + "\n");
             }
-        })
+        });
     """);
