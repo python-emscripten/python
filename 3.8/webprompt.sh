@@ -9,9 +9,6 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-# Alternatively: use Emscripten's old binary:
-# emscripten/tests/python/python.bc -s ERROR_ON_UNDEFINED_SYMBOLS=0
-
 INSTALLDIR=${INSTALLDIR:-$(dirname $(readlink -f $0))/destdir}
 BUILD=t
 
