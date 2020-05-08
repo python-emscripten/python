@@ -65,11 +65,11 @@
     <hr/>
     <textarea class="emscripten" id="output" rows="8" readonly="readonly"></textarea>
 
-    <input type="text" class="emscripten" id="input" name="text" value="{'REPL':'press enter'}" />
+    <input type="text" class="emscripten" id="input" name="text" value="{'REPL':['press enter',2+2]}" />
     <textarea class="emscripten" id="file" rows="8"># Python script
 def f(x):
     return x**2
-print("hello, world!")
+print("hello, world!", f(3))
 </textarea>
     <button class="emscripten" onclick="execute()">Execute</button>
     <hr>
