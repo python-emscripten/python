@@ -47,10 +47,6 @@ hostpython () {
 
         make -j$(nproc)
         make install DESTDIR=$BUILD/hostpython
-
-        # emcc should disregard '-fPIC' during non-SIDE_MODULE builds,
-        # otherwise _sysconfigdata.build_time_vars['CCSHARED'] is the culprit:
-        # sed -i -e 's/-fPIC//' $BUILD/hostpython/lib/python2.7/_sysconfigdata.py
     )
 
     # setuptools for 3rd-party module installers
@@ -70,17 +66,22 @@ emscripten () {
         # OPT=-Oz: TODO
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
         # not needed as emcc has a single arch: BASECFLAGS=-m32 LDFLAGS=-m32
-        # --without-threads: pthreads experimental as of 2019-11
+        # --without-threads: pthreads experimental as of 2020-05
         #   cf. https://emscripten.org/docs/porting/pthreads.html
-
+        # --without-signal-module: no process signals in Emscripten
+        # --without-pymalloc: ?
+        # --disable-ipv6: browser-side networking
+        # --disable-shared: compile statically for Emscripten perfs + incomplete PIC support
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' \
+                PYTHON_FOR_BUILD=$BUILD/Python-$VERSION/native/python \
                 emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
                 --prefix='' \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
         fi
+	# Fix bad detection
         sed -i -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
 
         # pgen native setup
@@ -88,11 +89,6 @@ emscripten () {
         # note: PGEN=../native/Parser/pgen doesn't work, make overwrites it
         emmake make Parser/pgen
         \cp --preserve=mode ../native/Parser/pgen Parser/
-        # python native setup
-        # note: PATH=... doesn't work, it breaks emcc's /usr/bin/env python
-        # note: PYTHON_FOR_BUILD=../native/python neither, it's a more complex call
-        #emmake env PATH=../../hostpython/bin:$PATH make -j$(nproc)
-        sed -i -e 's,\(PYTHON_FOR_BUILD=.*\) python2.7,\1 $(abs_srcdir)/native/python,' Makefile
 
         # Modules/Setup.local
         echo '*static*' > Modules/Setup.local
