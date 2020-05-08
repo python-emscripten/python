@@ -4,5 +4,6 @@
 */destdir
 */package/
 */Python-*.tgz
+*/Python-*.tar.xz
 */setuptools-*.zip
 */t/

@@ -1,0 +1,49 @@
+Description: Fix build system for Emscripten cross-compilation.
+Forwarded: no
+Author: Sylvain Beucler <beuc@beuc.net>
+Last-Update: 2020-05-08
+
+--- a/config.sub	2020-05-08 12:15:20.097297249 +0200
++++ b/config.sub	2020-05-08 12:17:19.704298501 +0200
+@@ -1394,7 +1394,7 @@
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+ 	      | -skyos* | -haiku* | -rdos* | -toppers* | -drops* | -es* \
+ 	      | -onefs* | -tirtos* | -phoenix* | -fuchsia* | -redox* | -bme* \
+-	      | -midnightbsd*)
++	      | -midnightbsd* | -emscripten*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+--- a/configure	2020-02-24 22:36:25.000000000 +0100
++++ b/configure	2020-05-08 12:41:34.048250804 +0200
+@@ -3274,6 +3274,9 @@
+ 	*-*-vxworks*)
+ 	    ac_sys_system=VxWorks
+ 	    ;;
++	*-*-emscripten)
++		ac_sys_system=Emscripten
++		;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+@@ -3324,6 +3327,9 @@
+ 	*-*-vxworks*)
+ 		_host_cpu=$host_cpu
+ 		;;
++	*-*-emscripten)
++		ac_sys_system=Emscripten
++		;;
+ 	*)
+ 		# for now, limit cross builds to known configurations
+ 		MACHDEP="unknown"
+diff --git a/config-emscripten.site b/config-emscripten.site
+new file mode 100644
+index 0000000..c273024
+--- /dev/null
++++ b/config-emscripten.site
+@@ -0,0 +1,5 @@
++# Required by ./configure
++ac_cv_file__dev_ptmx=no
++ac_cv_file__dev_ptc=no
++# Support dynamic linking
++ac_cv_func_dlopen=yes

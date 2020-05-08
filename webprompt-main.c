@@ -13,8 +13,15 @@
 #include <emscripten.h>
 #endif
 #include <Python.h>
-PyMODINIT_FUNC initemscripten(void);
-PyMODINIT_FUNC initemscripten_fetch(void);
+
+#if PY_MAJOR_VERSION >= 3
+#define MODINIT(name) PyInit_##name
+#else
+#define MODINIT(name) init##name
+#endif
+
+PyMODINIT_FUNC MODINIT(emscripten) (void);
+PyMODINIT_FUNC MODINIT(emscripten_fetch) (void);
 
 // Run a line *and* display the result
 // PyRun_StringFlags only returns a non-None object with Py_eval_input (no 'print' support)
@@ -28,13 +35,13 @@ int main(int argc, char**argv) {
   Py_OptimizeFlag = 2; // look for .pyo rather than .pyc
   Py_FrozenFlag   = 1; // drop <exec_prefix> warnings
   Py_VerboseFlag  = 1; // trace modules loading
-  Py_InitializeEx(0);  // 0 = get rid of 'Calling stub instead of sigaction()'
   static struct _inittab builtins[] = {
-    { "emscripten", initemscripten },
-    { "emscripten_fetch", initemscripten_fetch },
+    { "emscripten", MODINIT(emscripten) },
+    { "emscripten_fetch", MODINIT(emscripten_fetch) },
     {NULL, NULL}
   };
   PyImport_ExtendInittab(builtins);
+  Py_InitializeEx(0);  // 0 = get rid of 'Calling stub instead of sigaction()'
 #ifdef __EMSCRIPTEN__
   emscripten_exit_with_live_runtime();
 #else
