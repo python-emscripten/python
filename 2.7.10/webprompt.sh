@@ -45,6 +45,9 @@ emcc -o $BUILD/index.html \
   -s EXPORTED_FUNCTIONS='[_main, _Py_Initialize, _PyRun_SimpleString, _pyruni]' \
   -s EXTRA_EXPORTED_RUNTIME_METHODS='[ccall, cwrap]'
 
-# cython ../mock/emscripten.pyx -o t/mock.c
-# gcc -g -I build/hostpython/include/python2.7 -L build/hostpython/lib/ t/mock.c webprompt-main.c -lpython2.7 -ldl -lm -lutil -lz
+# emrun --serve_after_close t/index.html
+
+# cython -2 ../mock/emscripten.pyx -o t/mock.c
+# cython -2 ../mock/emscripten_fetch.pyx -o t/mock2.c
+# gcc -g -I build/hostpython/include/python2.7 -L build/hostpython/lib/ t/mock.c t/mock2.c ../webprompt-main.c -lpython2.7 -ldl -lm -lutil -lz -lpthread
 # PYTHONHOME=build/hostpython/ ./a.out
