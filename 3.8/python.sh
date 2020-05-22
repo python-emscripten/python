@@ -9,7 +9,7 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-VERSION=3.8.2
+VERSION=3.8.3
 SCRIPTDIR=$(dirname $(readlink -f $0))
 DESTDIR=${DESTDIR:-$SCRIPTDIR/destdir}
 SETUPLOCAL=${SETUPLOCAL:-'/dev/null'}
