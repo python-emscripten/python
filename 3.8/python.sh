@@ -44,6 +44,7 @@ hostpython () {
         fi
 
         make -j$(nproc)
+        rm -rf $BUILD/hostpython
         make install DESTDIR=$BUILD/hostpython
     )
 }
@@ -80,11 +81,12 @@ EOF
         cat $SETUPLOCAL >> Modules/Setup.local
         # drop -I/-L/-lz, we USE_ZLIB=1 (keep it in SETUPLOCAL for mock)
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
-	# drop system include_dirs for cross-compilation
-        sed -i -e 's/ self.add_multiarch_paths()/ #&/' ../setup.py
         # decrease .pyo size by dropping docstrings
         sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
-    
+
+        # Trigger setup.py:CROSS_COMPILING (introduced in 3.8)
+        export _PYTHON_HOST_PLATFORM=emscripten
+
         emmake make -j$(nproc)
         emmake make install DESTDIR=$DESTDIR
 

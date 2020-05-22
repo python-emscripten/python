@@ -50,3 +50,19 @@ Index: Python-3.8.3/config-emscripten.site
 +ac_cv_file__dev_ptc=no
 +# Support dynamic linking
 +ac_cv_func_dlopen=yes
+--- Python-3.8.3/setup.py	2020-05-13 19:31:54.000000000 +0200
++++ build/Python-3.8.3/setup.py	2020-05-22 10:43:49.189946959 +0200
+@@ -651,10 +651,10 @@
+         if not CROSS_COMPILING:
+             add_dir_to_list(self.compiler.library_dirs, '/usr/local/lib')
+             add_dir_to_list(self.compiler.include_dirs, '/usr/local/include')
++            self.add_multiarch_paths()
+         # only change this for cross builds for 3.3, issues on Mageia
+-        if CROSS_COMPILING:
+-            self.add_cross_compiling_paths()
+-        self.add_multiarch_paths()
++        #if CROSS_COMPILING:
++        #    self.add_cross_compiling_paths()
+         self.add_ldflags_cppflags()
+ 
+     def init_inc_lib_dirs(self):

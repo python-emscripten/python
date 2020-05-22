@@ -18,8 +18,13 @@ cython -3 ../emscripten.pyx -o $BUILD/emscripten.c
 cython -3 ../emscripten_fetch.pyx -o $BUILD/emscripten_fetch.c
 # utf_32_be: support Unicode characters e.g. u'é'
 # __future__.py: for emscripten.pyx
+# + some optional but common Python deps
 PREFIX=$INSTALLDIR OUTDIR=$BUILD ./package-pythonhome.sh \
-    encodings/utf_32_be.py __future__.py
+    encodings/utf_32_be.py __future__.py \
+    struct.py operator.py datetime.py random.py functools.py types.py \
+    collections/__init__.py collections/abc.py \
+    pickle.py copyreg.py _compat_pickle.py keyword.py heapq.py reprlib.py \
+    re.py sre_compile.py sre_parse.py sre_constants.py enum.py
 
 FLAGS='-O3'
 while (( $# )); do
