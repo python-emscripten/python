@@ -27,18 +27,16 @@ mkdir -p $PACKAGEDIR
 
 # Hard-coded modules: for 'print("hello, world.")'
 # $@: additional, app-specific modules
+(cd $PREFIX/lib/python3.8/ && $CROSSPYTHON -OO -m compileall .) >/dev/null || true
 for i in site.py os.py stat.py posixpath.py genericpath.py abc.py encodings/__init__.py codecs.py encodings/aliases.py encodings/utf_8.py io.py _collections_abc.py _sitebuiltins.py encodings/ascii.py encodings/latin_1.py \
     "$@"; do
-    # TODO: no .pyo in Py3
-    if [ $PREFIX/lib/python3.8/$i -nt $PREFIX/lib/python3.8/${i%.py}.pyo ]; then
-	(cd $PREFIX && $CROSSPYTHON -OO -m py_compile lib/python3.8/$i)
-    fi
-    mkdir -p $PACKAGEDIR/lib/python3.8/$(dirname $i)
-    #cp -au $PREFIX/lib/python3.8/${i%.py}.pyo $PACKAGEDIR/lib/python3.8/${i%.py}.py
-    cp -au $PREFIX/lib/python3.8/${i%.py}.py $PACKAGEDIR/lib/python3.8/${i%.py}.py
+    mkdir -p $PACKAGEDIR/lib/python3.8/$(dirname $i)/__pycache__
+    # Install to legacy .pyc location for size-efficient source-less distribution
+    cp -au $PREFIX/lib/python3.8/$(dirname $i)/__pycache__/$(basename ${i%.py}.cpython-38.opt-2.pyc) \
+       $PACKAGEDIR/lib/python3.8/${i%.py}.pyc
 done
 # Large and leaks build paths, clean it:
-#echo 'build_time_vars = {}' > $PACKAGEDIR/lib/python3.8/_sysconfigdata.py
+#echo 'build_time_vars = {}' > $PACKAGEDIR/lib/python3.8/lib-dynload/_sysconfigdata__linux_x86_64-linux-gnu.py
 #(cd $PACKAGEDIR && $CROSSPYTHON -OO -m py_compile lib/python3.8/_sysconfigdata.py)
 #rm -f $PACKAGEDIR/lib/python3.8/_sysconfigdata.py
 
