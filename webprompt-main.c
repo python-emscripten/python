@@ -1,7 +1,7 @@
 /**
  * Simple Python prompt with static emscripten module available
  * 
- * Copyright (C) 2019  Sylvain Beucler
+ * Copyright (C) 2019, 2020  Sylvain Beucler
  *
  * Copying and distribution of this file, with or without
  * modification, are permitted in any medium without royalty provided
