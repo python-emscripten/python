@@ -66,6 +66,8 @@ emscripten () {
         # OPT=-Oz: TODO
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
         # not needed as emcc has a single arch: BASECFLAGS=-m32 LDFLAGS=-m32
+        # PATH: detect our Python, beware of conflict with emcc's python3
+        #       don't use PYTHON_FOR_BUILD which is high-level / lots of options
         # --without-threads: pthreads experimental as of 2020-05
         #   cf. https://emscripten.org/docs/porting/pthreads.html
         # --without-signal-module: no process signals in Emscripten
@@ -74,14 +76,14 @@ emscripten () {
         # --disable-shared: compile statically for Emscripten perfs + incomplete PIC support
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config.site BASECFLAGS='-s USE_ZLIB=1' \
-                PYTHON_FOR_BUILD=$BUILD/Python-$VERSION/native/python \
+                PATH=$BUILD/Python-$VERSION/native:$PATH \
                 emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
                 --prefix='' \
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
         fi
-	# Fix bad detection
+        # Fix bad detection
         sed -i -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
 
         # pgen native setup
@@ -96,13 +98,15 @@ emscripten () {
         # drop -I/-L/-lz, we USE_ZLIB=1 (keep it in SETUPLOCAL for mock)
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
     
-        emmake make -j$(nproc)
-
-        # setup.py install_lib doesn't respect DESTDIR
-        echo -e 'sharedinstall:\n\ttrue' >> Makefile
-        # decrease .pyo size by dropping docstrings
-        sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
-        emmake make install DESTDIR=$DESTDIR
+        (
+            export PATH=$BUILD/Python-$VERSION/native:$PATH
+            emmake make -j$(nproc)
+            # setup.py install_lib doesn't respect DESTDIR
+            echo -e 'sharedinstall:\n\ttrue' >> Makefile
+            # decrease .pyo size by dropping docstrings
+            sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
+            emmake make install DESTDIR=$DESTDIR
+        )
 
         # Basic trimming
         # Disabled for now, better cherry-pick the files we need
@@ -201,7 +205,7 @@ case "$1" in
         crosspython
         ;;
     *)
-        echo "Usage: $0 unpack|native|emscripten"
+        echo "Usage: $0 unpack|hostpython|emscripten|mock|crosspython"
         exit 1
         ;;
 esac

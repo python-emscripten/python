@@ -56,12 +56,14 @@ emscripten () {
         cd emscripten/
         # OPT=-Oz: TODO
         # CONFIG_SITE: deals with cross-compilation https://bugs.python.org/msg136962
+        # PATH: detect our Python, beware of conflict with emcc's python3
+        #       don't use PYTHON_FOR_BUILD which is high-level / lots of options
         # --without-pymalloc: ?
         # --disable-ipv6: ?
-	# --disable-shared: compile statically for Emscripten perfs + incomplete PIC support
+        # --disable-shared: compile statically for Emscripten perfs + incomplete PIC support
         if [ ! -e config.status ]; then
             CONFIG_SITE=../config-emscripten.site BASECFLAGS='-s USE_ZLIB=1' READELF=true \
-                PYTHON_FOR_BUILD=$BUILD/Python-$VERSION/native/python \
+                PATH=$BUILD/Python-$VERSION/native:$PATH \
                 emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
                 --prefix='' \
@@ -84,11 +86,13 @@ EOF
         # decrease .pyo size by dropping docstrings
         sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
 
-        # Trigger setup.py:CROSS_COMPILING (introduced in 3.8)
-        export _PYTHON_HOST_PLATFORM=emscripten
-
-        emmake make -j$(nproc)
-        emmake make install DESTDIR=$DESTDIR
+        (
+            export PATH=$BUILD/Python-$VERSION/native:$PATH
+            # Trigger setup.py:CROSS_COMPILING (introduced in 3.8)
+            export _PYTHON_HOST_PLATFORM=emscripten
+            emmake make -j$(nproc)
+            emmake make install DESTDIR=$DESTDIR
+        )
 
         # Basic trimming
         # Disabled for now, better cherry-pick the files we need
@@ -166,14 +170,14 @@ crosspython () {
 	    # Use Python.h configured for WASM
 	    ln -s $DESTDIR/include include
 	    
-	    # TODO: Use compiler settings configured for WASM
-	    #rm lib/python3.8/_sysconfigdata.*
-	    #cp -a $DESTDIR/lib/python3.8/_sysconfigdata.* lib/python3.8/
+	    # Use compiler settings configured for WASM
+	    cp -a $DESTDIR/lib/python3.8/_sysconfigdata__emscripten_.py \
+	       lib/python3.8/_sysconfigdata_*.py
 	)
     done
-    # TODO: 'CCSHARED': 'xxx',
-    #sed -i -e "s/'CCSHARED': .*/'CCSHARED': '-fPIC -s SIDE_MODULE=1',/" \
-    #   crosspython-dynamic/lib/python3.8/_sysconfigdata.py
+    # 'CCSHARED': 'xxx',
+    sed -i -e "s/'CCSHARED': .*/'CCSHARED': '-fPIC -s SIDE_MODULE=1',/" \
+       crosspython-dynamic/lib/python3.8/_sysconfigdata_*.py
 }
 
 case "$1" in
@@ -187,7 +191,7 @@ case "$1" in
         crosspython
         ;;
     *)
-        echo "Usage: $0 unpack|native|emscripten"
+        echo "Usage: $0 unpack|hostpython|emscripten|mock|crosspython"
         exit 1
         ;;
 esac
