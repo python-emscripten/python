@@ -62,7 +62,8 @@ emscripten () {
         # --disable-ipv6: ?
         # --disable-shared: compile statically for Emscripten perfs + incomplete PIC support
         if [ ! -e config.status ]; then
-            CONFIG_SITE=../config-emscripten.site BASECFLAGS='-s USE_ZLIB=1' READELF=true \
+            CONFIG_SITE=../config-emscripten.site READELF=true \
+		BASECFLAGS='-s USE_ZLIB=1' LDFLAGS='-s USE_ZLIB=1' \
                 PATH=$BUILD/Python-$VERSION/native:$PATH \
                 emconfigure ../configure \
                 --host=asmjs-unknown-emscripten --build=$(../config.guess) \
@@ -83,6 +84,7 @@ EOF
         cat $SETUPLOCAL >> Modules/Setup.local
         # drop -I/-L/-lz, we USE_ZLIB=1 (keep it in SETUPLOCAL for mock)
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
+        emmake make Makefile
         # decrease .pyo size by dropping docstrings
         sed -i -e '/compileall.py/ s/ -O / -OO /' Makefile
 

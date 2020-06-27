@@ -96,6 +96,7 @@ emscripten () {
         # Modules/Setup.local
         echo '*static*' > Modules/Setup.local
         cat $SETUPLOCAL >> Modules/Setup.local
+        emmake make Makefile
         # drop -I/-L/-lz, we USE_ZLIB=1 (keep it in SETUPLOCAL for mock)
         sed -i -e 's/^\(zlib zlibmodule.c\).*/\1/' Modules/Setup.local
     
