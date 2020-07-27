@@ -31,7 +31,7 @@ unpack () {
 }
 
 # use cases:
-# - python/pgen/.pyo for emscripten() below
+# - python/.pyo for emscripten() below
 # - common basis for crosspython below
 hostpython () {
     cd $BUILD/Python-$VERSION/
