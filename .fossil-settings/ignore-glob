@@ -1,9 +1,11 @@
 */build/
 */crosspython-static/
 */crosspython-dynamic/
-*/destdir
+*/destdir*
 */package/
 */Python-*.tgz
 */Python-*.tar.xz
 */setuptools-*.zip
 */t/
+*.bak
+*~
