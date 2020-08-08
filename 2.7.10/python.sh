@@ -84,8 +84,6 @@ emscripten () {
                 --without-threads --without-pymalloc --without-signal-module --disable-ipv6 \
                 --disable-shared
         fi
-        # Fix bad detection
-        sed -i.bak -e 's,^#define HAVE_GCC_ASM_FOR_X87.*,/* & */,' pyconfig.h
 
         # pgen native setup
         # note: need to build 'pgen' once before overwriting it with the native one
