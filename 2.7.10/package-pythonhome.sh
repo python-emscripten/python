@@ -2,14 +2,14 @@
 
 # Creates a minimal Python file hierarchy at $PACKAGEDIR
 
-# Copyright (C) 2018, 2019  Sylvain Beucler
+# Copyright (C) 2018, 2019, 2020  Sylvain Beucler
 
 # Copying and distribution of this file, with or without modification,
 # are permitted in any medium without royalty provided the copyright
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-FILE_PACKAGER="python $(dirname $(which emcc))/tools/file_packager.py"
+FILE_PACKAGER="python3 $(dirname $(which emcc))/tools/file_packager.py"
 
 PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/destdir}
 PACKAGEDIR=${PACKAGEDIR:-$(dirname $(readlink -f $0))/package}

@@ -2,14 +2,14 @@ Python compilation scripts and patches to run in the browser.
 
 <https://www.beuc.net/python-emscripten/python>
 
-Build requirements: Emscripten, gcc, make, quilt
+Build requirements: Emscripten, python3, gcc, make, quilt
 
 Emscripten: download prebuilt binaries (or [build from source](https://emscripten.org/docs/building_from_source/))
 
     git clone https://github.com/emscripten-core/emsdk/
     pushd emsdk/
-    ./emsdk install 1.39.18
-    ./emsdk activate 1.39.18
+    ./emsdk install 2.0.2
+    ./emsdk activate 2.0.2
     popd
     source emsdk/emsdk_env.sh
 

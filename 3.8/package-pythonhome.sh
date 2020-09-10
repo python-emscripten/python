@@ -9,7 +9,7 @@
 # notice and this notice are preserved.  This file is offered as-is,
 # without any warranty.
 
-FILE_PACKAGER="python $(dirname $(which emcc))/tools/file_packager.py"
+FILE_PACKAGER="python3 $(dirname $(which emcc))/tools/file_packager.py"
 
 PREFIX=${PREFIX:-$(dirname $(readlink -f $0))/destdir}
 PACKAGEDIR=${PACKAGEDIR:-$(dirname $(readlink -f $0))/package}
